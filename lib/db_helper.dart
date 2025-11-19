@@ -7,16 +7,11 @@ class DBHelper {
 
   static Future<Database> get database async {
     if (_db != null) return _db!;
-    _db = await _initDb();
-    return _db!;
-  }
-
-  static Future<Database> _initDb() async {
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'kanakupulla.db');
+    final fullPath = join(dbPath, 'kanakupulla.db');
     return await openDatabase(
-      path,
-      version: 1,
+      fullPath,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE expenses (
@@ -24,7 +19,8 @@ class DBHelper {
             title TEXT,
             amount REAL,
             date TEXT,
-            category TEXT
+            category TEXT,
+            paymentMethod TEXT
           )
         ''');
         await db.execute('''
@@ -57,6 +53,12 @@ class DBHelper {
           )
         ''');
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add paymentMethod column if not exists
+          await db.execute("ALTER TABLE expenses ADD COLUMN paymentMethod TEXT");
+        }
+      },
     );
   }
 
@@ -70,6 +72,7 @@ class DBHelper {
         'amount': e.amount,
         'date': e.date.toIso8601String(),
         'category': e.category,
+        'paymentMethod': e.paymentMethod,
       },
       where: 'id = ?',
       whereArgs: [e.id],
@@ -83,7 +86,8 @@ class DBHelper {
       'amount': e.amount,
       'date': e.date.toIso8601String(),
       'category': e.category,
-    });
+      'paymentMethod': e.paymentMethod,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
   static Future<List<Expense>> getExpenses() async {
     final db = await database;
@@ -94,6 +98,7 @@ class DBHelper {
       amount: m['amount'] is int ? (m['amount'] as int).toDouble() : m['amount'] as double,
       date: DateTime.parse(m['date'] as String),
       category: m['category'] as String,
+      paymentMethod: m['paymentMethod'] as String?,
     )).toList();
   }
   static Future<void> deleteExpense(String id) async {
@@ -150,7 +155,7 @@ class DBHelper {
   // Category CRUD
   static Future<void> insertCategory(String name) async {
     final db = await database;
-    await db.insert('categories', {'name': name});
+    await db.insert('categories', {'name': name}, conflictAlgorithm: ConflictAlgorithm.replace);
   }
   static Future<List<String>> getCategories() async {
     final db = await database;
@@ -172,7 +177,7 @@ class DBHelper {
       'description': t.description,
       'category': t.category,
       'isImported': t.isImported ? 1 : 0,
-    });
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
   static Future<List<TransactionModel>> getTransactions() async {
     final db = await database;

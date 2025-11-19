@@ -5,6 +5,7 @@ class Expense {
   final double amount;
   final DateTime date;
   final String category;
+  final String? paymentMethod; // 'Salary' or 'Credit Card'
 
   Expense({
     required this.id,
@@ -12,6 +13,7 @@ class Expense {
     required this.amount,
     required this.date,
     required this.category,
+    this.paymentMethod,
   });
 }
 
