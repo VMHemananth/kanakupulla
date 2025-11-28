@@ -1,0 +1,121 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/models/category_model.dart';
+import '../providers/category_provider.dart';
+
+class ManageCategoriesScreen extends ConsumerWidget {
+  const ManageCategoriesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categoriesAsync = ref.watch(categoryProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Manage Categories')),
+      body: categoriesAsync.when(
+        data: (categories) {
+          return ListView.builder(
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: _getColorForType(category.type),
+                  child: Text(category.name[0]),
+                ),
+                title: Text(category.name),
+                subtitle: Text(category.type),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed: () => _showAddCategoryDialog(context, ref, category: category),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        // Prevent deleting if used? For now just allow delete
+                        ref.read(categoryProvider.notifier).deleteCategory(category.name);
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddCategoryDialog(context, ref),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Color _getColorForType(String type) {
+    switch (type) {
+      case 'Need': return Colors.blue;
+      case 'Want': return Colors.orange;
+      case 'Savings': return Colors.green;
+      default: return Colors.grey;
+    }
+  }
+
+  void _showAddCategoryDialog(BuildContext context, WidgetRef ref, {CategoryModel? category}) {
+    final nameController = TextEditingController(text: category?.name ?? '');
+    String selectedType = category?.type ?? 'Want';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text(category == null ? 'Add Category' : 'Edit Category'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Category Name'),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedType,
+                decoration: const InputDecoration(labelText: 'Type'),
+                items: const [
+                  DropdownMenuItem(value: 'Need', child: Text('Need (50%)')),
+                  DropdownMenuItem(value: 'Want', child: Text('Want (30%)')),
+                  DropdownMenuItem(value: 'Savings', child: Text('Savings (20%)')),
+                ],
+                onChanged: (val) => setState(() => selectedType = val!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isNotEmpty) {
+                  final newCategory = CategoryModel(
+                    name: nameController.text,
+                    type: selectedType,
+                  );
+                  
+                  if (category == null) {
+                    ref.read(categoryProvider.notifier).addCategory(newCategory);
+                  } else {
+                    ref.read(categoryProvider.notifier).updateCategory(category.name, newCategory);
+                  }
+                  Navigator.pop(ctx);
+                }
+              },
+              child: Text(category == null ? 'Add' : 'Update'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
