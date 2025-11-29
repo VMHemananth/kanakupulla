@@ -16,20 +16,14 @@ class FixedExpenseRepository {
   Future<List<FixedExpenseModel>> getFixedExpenses() async {
     final db = await _dbService.database;
     final result = await db.query('fixed_expenses');
-    return result.map((e) => FixedExpenseModel.fromJson({
-      ...e,
-      'isAutoAdd': (e['isAutoAdd'] as int) == 1,
-    })).toList();
+    return result.map((e) => FixedExpenseModel.fromJson(e)).toList();
   }
 
   Future<void> addFixedExpense(FixedExpenseModel expense) async {
     final db = await _dbService.database;
     await db.insert(
       'fixed_expenses',
-      {
-        ...expense.toJson(),
-        'isAutoAdd': expense.isAutoAdd ? 1 : 0,
-      },
+      expense.toJson(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -38,10 +32,7 @@ class FixedExpenseRepository {
     final db = await _dbService.database;
     await db.update(
       'fixed_expenses',
-      {
-        ...expense.toJson(),
-        'isAutoAdd': expense.isAutoAdd ? 1 : 0,
-      },
+      expense.toJson(),
       where: 'id = ?',
       whereArgs: [expense.id],
     );
