@@ -3,49 +3,58 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 
-class CategoryBudgetScreen extends ConsumerWidget {
+class CategoryBudgetScreen extends StatelessWidget {
   const CategoryBudgetScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Category Budgets')),
+      body: const CategoryBudgetListWidget(),
+    );
+  }
+}
+
+class CategoryBudgetListWidget extends ConsumerWidget {
+  const CategoryBudgetListWidget({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categoriesAsync = ref.watch(categoryProvider);
     final budgetsAsync = ref.watch(categoryBudgetsProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Category Budgets')),
-      body: categoriesAsync.when(
-        data: (categories) {
-          return budgetsAsync.when(
-            data: (budgets) {
-              // Create a map of category -> budget amount
-              final budgetMap = {for (var b in budgets) b.category!: b.amount};
+    return categoriesAsync.when(
+      data: (categories) {
+        return budgetsAsync.when(
+          data: (budgets) {
+            // Create a map of category -> budget amount
+            final budgetMap = {for (var b in budgets) b.category!: b.amount};
 
-              return ListView.builder(
-                itemCount: categories.length,
-                itemBuilder: (context, index) {
-                  final category = categories[index];
-                  final currentBudget = budgetMap[category.name];
+            return ListView.builder(
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final category = categories[index];
+                final currentBudget = budgetMap[category.name];
 
-                  return ListTile(
-                    title: Text(category.name),
-                    subtitle: Text(currentBudget != null 
-                      ? 'Budget: ₹${currentBudget.toStringAsFixed(0)}' 
-                      : 'No budget set'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () => _showSetBudgetDialog(context, ref, category.name, currentBudget),
-                    ),
-                  );
-                },
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-      ),
+                return ListTile(
+                  title: Text(category.name),
+                  subtitle: Text(currentBudget != null 
+                    ? 'Budget: ₹${currentBudget.toStringAsFixed(0)}' 
+                    : 'No budget set'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: () => _showSetBudgetDialog(context, ref, category.name, currentBudget),
+                  ),
+                );
+              },
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
     );
   }
 

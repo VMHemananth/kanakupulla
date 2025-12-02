@@ -11,6 +11,8 @@ class SalaryModel with _$SalaryModel {
     required DateTime date,
     @Default('Salary') String source,
     String? title,
+    int? workingDays,
+    int? workingHours,
   }) = _SalaryModel;
 
   factory SalaryModel.fromJson(Map<String, dynamic> json) =>

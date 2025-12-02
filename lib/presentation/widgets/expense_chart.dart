@@ -3,11 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/expense_provider.dart';
 
-class ExpenseChart extends ConsumerWidget {
+class ExpenseChart extends ConsumerStatefulWidget {
   const ExpenseChart({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExpenseChart> createState() => _ExpenseChartState();
+}
+
+class _ExpenseChartState extends ConsumerState<ExpenseChart> {
+  int touchedIndex = -1;
+
+  @override
+  Widget build(BuildContext context) {
     final expensesAsync = ref.watch(expensesProvider);
 
     return Card(
@@ -31,28 +38,72 @@ class ExpenseChart extends ConsumerWidget {
                     total += e.amount;
                   }
 
-                  final sections = categoryTotals.entries.map((entry) {
-                    final index = categoryTotals.keys.toList().indexOf(entry.key);
-                    final percentage = (entry.value / total) * 100;
-                    return PieChartSectionData(
-                      value: entry.value,
-                      title: '${percentage.toStringAsFixed(0)}%',
-                      color: Colors.primaries[index % Colors.primaries.length],
-                      radius: 50,
-                      titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                    );
-                  }).toList();
+                  final entries = categoryTotals.entries.toList();
 
                   return Row(
                     children: [
                       Expanded(
-                        child: PieChart(
-                          PieChartData(
-                            sections: sections,
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 30,
-                            borderData: FlBorderData(show: false),
-                          ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            PieChart(
+                              PieChartData(
+                                pieTouchData: PieTouchData(
+                                  touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                                    setState(() {
+                                      if (!event.isInterestedForInteractions ||
+                                          pieTouchResponse == null ||
+                                          pieTouchResponse.touchedSection == null) {
+                                        touchedIndex = -1;
+                                        return;
+                                      }
+                                      touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                                    });
+                                  },
+                                ),
+                                borderData: FlBorderData(show: false),
+                                sectionsSpace: 0,
+                                centerSpaceRadius: 40,
+                                sections: List.generate(entries.length, (i) {
+                                  final isTouched = i == touchedIndex;
+                                  final fontSize = isTouched ? 16.0 : 12.0;
+                                  final radius = isTouched ? 60.0 : 50.0;
+                                  final entry = entries[i];
+                                  final percentage = (entry.value / total) * 100;
+                                  
+                                  return PieChartSectionData(
+                                    color: Colors.primaries[i % Colors.primaries.length],
+                                    value: entry.value,
+                                    title: '${percentage.toStringAsFixed(0)}%',
+                                    radius: radius,
+                                    titleStyle: TextStyle(
+                                      fontSize: fontSize,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  touchedIndex != -1 && touchedIndex < entries.length
+                                      ? entries[touchedIndex].key
+                                      : 'Total',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
+                                Text(
+                                  touchedIndex != -1 && touchedIndex < entries.length
+                                      ? '₹${entries[touchedIndex].value.toStringAsFixed(0)}'
+                                      : '₹${total.toStringAsFixed(0)}',
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -60,8 +111,10 @@ class ExpenseChart extends ConsumerWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: categoryTotals.entries.map((e) {
-                             final index = categoryTotals.keys.toList().indexOf(e.key);
+                          children: entries.asMap().entries.map((e) {
+                             final index = e.key;
+                             final entry = e.value;
+                             final isTouched = index == touchedIndex;
                              return Padding(
                                padding: const EdgeInsets.symmetric(vertical: 2.0),
                                child: Row(
@@ -74,7 +127,16 @@ class ExpenseChart extends ConsumerWidget {
                                      ),
                                    ),
                                    const SizedBox(width: 8),
-                                   Expanded(child: Text(e.key, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+                                   Expanded(
+                                     child: Text(
+                                       entry.key, 
+                                       style: TextStyle(
+                                         fontSize: 12, 
+                                         fontWeight: isTouched ? FontWeight.bold : FontWeight.normal
+                                       ), 
+                                       overflow: TextOverflow.ellipsis
+                                     )
+                                   ),
                                  ],
                                ),
                              );

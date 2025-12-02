@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -14,10 +15,9 @@ import 'monthly_compare_screen.dart';
 import 'income_list_screen.dart';
 import 'transaction_review_screen.dart';
 import 'analysis_screen.dart';
-import 'manage_categories_screen.dart';
+import 'manage_categories_and_budgets_screen.dart';
 import 'manage_fixed_expenses_screen.dart';
 import 'manage_recurring_income_screen.dart';
-import 'category_budget_screen.dart';
 import '../providers/salary_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/sms_provider.dart';
@@ -27,6 +27,7 @@ import '../providers/auth_provider.dart';
 import '../../data/models/expense_model.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import '../../data/services/pdf_service.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -141,7 +142,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 currentAccountPicture: CircleAvatar(
                   backgroundImage: user.profilePicPath != null 
-                    ? NetworkImage(user.profilePicPath!) // TODO: Handle local file
+                    ? (user.profilePicPath!.startsWith('http') 
+                        ? NetworkImage(user.profilePicPath!) 
+                        : FileImage(File(user.profilePicPath!)) as ImageProvider)
                     : null,
                   child: user.profilePicPath == null ? const Icon(Icons.person) : null,
                 ),
@@ -179,18 +182,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ManageCategoriesScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.attach_money),
-              title: const Text('Category Budgets'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CategoryBudgetScreen()),
+                  MaterialPageRoute(builder: (context) => const ManageCategoriesAndBudgetsScreen()),
                 );
               },
             ),
@@ -217,12 +209,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.download),
-              title: const Text('Export CSV'),
-              onTap: () async {
+              leading: const Icon(Icons.file_download),
+              title: const Text('Export Report'),
+              onTap: () {
                 Navigator.pop(context);
-                final expenses = ref.read(expensesProvider).value ?? [];
-                await CsvExporter.exportExpenses(expenses);
+                _showExportDialog();
               },
             ),
             ListTile(
@@ -374,6 +365,80 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           );
         },
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Future<void> _exportCsv() async {
+    try {
+      final expensesAsync = ref.read(expensesProvider);
+      if (expensesAsync.hasValue) {
+        await CsvExporter.exportExpenses(expensesAsync.value!);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No expenses to export')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('CSV export failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _generatePdf() async {
+    try {
+      final expensesAsync = ref.read(expensesProvider);
+      if (expensesAsync.hasValue) {
+        await PdfService().generateExpenseReport(expensesAsync.value!);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No expenses to export')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PDF generation failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _showExportDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Export Report'),
+        content: const Text('Choose a format to export your expenses.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _exportCsv();
+            },
+            icon: const Icon(Icons.table_chart),
+            label: const Text('CSV'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _generatePdf();
+            },
+            icon: const Icon(Icons.picture_as_pdf),
+            label: const Text('PDF'),
+          ),
+        ],
       ),
     );
   }

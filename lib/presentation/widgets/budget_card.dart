@@ -21,15 +21,33 @@ class BudgetCard extends ConsumerWidget {
               data: (expenses) {
                 final totalExpense = expenses.fold(0.0, (sum, e) => sum + e.amount);
                 final progress = budgetAmount > 0 ? (totalExpense / budgetAmount).clamp(0.0, 1.0) : 0.0;
+                final remaining = budgetAmount - totalExpense;
                 
+                // Calculate daily limit
+                final now = DateTime.now();
+                final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
+                final daysRemaining = daysInMonth - now.day + 1; // Including today
+                final dailyLimit = daysRemaining > 0 ? (remaining / daysRemaining) : 0.0;
+
                 return Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Monthly Budget', style: TextStyle(fontWeight: FontWeight.bold)),
-                        if (budgetAmount > 0)
-                          Text('${(progress * 100).toStringAsFixed(1)}%'),
+                        Row(
+                          children: [
+                            if (budgetAmount > 0)
+                              Text('${(progress * 100).toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _showEditBudgetDialog(context, ref, budgetAmount),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -40,12 +58,37 @@ class BudgetCard extends ConsumerWidget {
                       color: progress > 1.0 ? Colors.red : Colors.blueAccent,
                       backgroundColor: Colors.grey[200],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Budget: ₹${budgetAmount.toStringAsFixed(0)}'),
-                        Text('Spent: ₹${totalExpense.toStringAsFixed(0)}'),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Budget: ₹${budgetAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text('Spent: ₹${totalExpense.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Remaining: ₹${remaining.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: remaining < 0 ? Colors.red : Colors.green,
+                              ),
+                            ),
+                            if (remaining > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Daily Limit: ₹${dailyLimit.toStringAsFixed(0)}',
+                                style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                   ],
@@ -58,6 +101,34 @@ class BudgetCard extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Text('Error loading budget: $e'),
         ),
+      ),
+    );
+  }
+
+  void _showEditBudgetDialog(BuildContext context, WidgetRef ref, double currentAmount) {
+    final controller = TextEditingController(text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Monthly Budget'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹'),
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final amount = double.tryParse(controller.text);
+              if (amount != null) {
+                ref.read(budgetProvider.notifier).setBudget(amount);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }

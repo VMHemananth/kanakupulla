@@ -80,6 +80,8 @@ class IncomeListScreen extends ConsumerWidget {
     final amountController = TextEditingController(text: income?.amount.toString() ?? '');
     final sourceController = TextEditingController(text: income?.source ?? 'Salary');
     final titleController = TextEditingController(text: income?.title ?? '');
+    final workingDaysController = TextEditingController(text: income?.workingDays?.toString() ?? '');
+    final workingHoursController = TextEditingController(text: income?.workingHours?.toString() ?? '');
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -105,6 +107,34 @@ class IncomeListScreen extends ConsumerWidget {
                 controller: titleController,
                 decoration: const InputDecoration(labelText: 'Description (Optional)'),
               ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: workingDaysController,
+                      decoration: const InputDecoration(
+                        labelText: 'Working Days',
+                        hintText: 'Optional',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: workingHoursController,
+                      decoration: const InputDecoration(
+                        labelText: 'Working Hours',
+                        hintText: 'Optional',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -119,6 +149,8 @@ class IncomeListScreen extends ConsumerWidget {
                   date: income?.date ?? date,
                   source: sourceController.text,
                   title: titleController.text.isEmpty ? null : titleController.text,
+                  workingDays: int.tryParse(workingDaysController.text),
+                  workingHours: int.tryParse(workingHoursController.text),
                 );
                 ref.read(salaryProvider.notifier).addIncome(newIncome); // addIncome handles replace/update in repo
                 Navigator.pop(ctx);

@@ -15,7 +15,7 @@ class DatabaseService {
     
     _db = await openDatabase(
       fullPath,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE expenses (
@@ -121,6 +121,10 @@ class DatabaseService {
               isAutoAdd INTEGER
             )
           ''');
+        }
+        if (oldVersion < 6) {
+          await db.execute("ALTER TABLE salaries ADD COLUMN workingDays INTEGER");
+          await db.execute("ALTER TABLE salaries ADD COLUMN workingHours INTEGER");
         }
       },
     );

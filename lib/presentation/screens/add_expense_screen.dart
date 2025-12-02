@@ -34,7 +34,22 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     super.initState();
     _titleController = TextEditingController(text: widget.expense?.title ?? '');
     _amountController = TextEditingController(text: widget.expense?.amount.toString() ?? '');
-    _selectedDate = widget.expense?.date ?? widget.initialDate ?? DateTime.now();
+    // If initialDate is provided, use it.
+    // However, if initialDate is just the 1st of the current month (default behavior of dashboard),
+    // we prefer showing today's date for better UX.
+    if (widget.initialDate != null) {
+      final now = DateTime.now();
+      if (widget.initialDate!.year == now.year && 
+          widget.initialDate!.month == now.month && 
+          widget.initialDate!.day == 1) {
+        _selectedDate = now;
+      } else {
+        _selectedDate = widget.initialDate!;
+      }
+    } else {
+      _selectedDate = widget.expense?.date ?? DateTime.now();
+    }
+    
     _selectedCategory = widget.expense?.category;
     _paymentMethod = widget.expense?.paymentMethod ?? 'Salary';
   }
@@ -196,7 +211,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 onPressed: _saveExpense,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Theme.of(context).primaryColor,
+                  backgroundColor: Colors.teal,
                   foregroundColor: Colors.white,
                 ),
                 child: Text(widget.expense == null ? 'Save Expense' : 'Update Expense'),

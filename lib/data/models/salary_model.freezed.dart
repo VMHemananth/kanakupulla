@@ -26,6 +26,8 @@ mixin _$SalaryModel {
   DateTime get date => throw _privateConstructorUsedError;
   String get source => throw _privateConstructorUsedError;
   String? get title => throw _privateConstructorUsedError;
+  int? get workingDays => throw _privateConstructorUsedError;
+  int? get workingHours => throw _privateConstructorUsedError;
 
   /// Serializes this SalaryModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -50,6 +52,8 @@ abstract class $SalaryModelCopyWith<$Res> {
     DateTime date,
     String source,
     String? title,
+    int? workingDays,
+    int? workingHours,
   });
 }
 
@@ -73,6 +77,8 @@ class _$SalaryModelCopyWithImpl<$Res, $Val extends SalaryModel>
     Object? date = null,
     Object? source = null,
     Object? title = freezed,
+    Object? workingDays = freezed,
+    Object? workingHours = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -96,6 +102,14 @@ class _$SalaryModelCopyWithImpl<$Res, $Val extends SalaryModel>
                 ? _value.title
                 : title // ignore: cast_nullable_to_non_nullable
                       as String?,
+            workingDays: freezed == workingDays
+                ? _value.workingDays
+                : workingDays // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            workingHours: freezed == workingHours
+                ? _value.workingHours
+                : workingHours // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -117,6 +131,8 @@ abstract class _$$SalaryModelImplCopyWith<$Res>
     DateTime date,
     String source,
     String? title,
+    int? workingDays,
+    int? workingHours,
   });
 }
 
@@ -139,6 +155,8 @@ class __$$SalaryModelImplCopyWithImpl<$Res>
     Object? date = null,
     Object? source = null,
     Object? title = freezed,
+    Object? workingDays = freezed,
+    Object? workingHours = freezed,
   }) {
     return _then(
       _$SalaryModelImpl(
@@ -162,6 +180,14 @@ class __$$SalaryModelImplCopyWithImpl<$Res>
             ? _value.title
             : title // ignore: cast_nullable_to_non_nullable
                   as String?,
+        workingDays: freezed == workingDays
+            ? _value.workingDays
+            : workingDays // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        workingHours: freezed == workingHours
+            ? _value.workingHours
+            : workingHours // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -176,6 +202,8 @@ class _$SalaryModelImpl implements _SalaryModel {
     required this.date,
     this.source = 'Salary',
     this.title,
+    this.workingDays,
+    this.workingHours,
   });
 
   factory _$SalaryModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -192,10 +220,14 @@ class _$SalaryModelImpl implements _SalaryModel {
   final String source;
   @override
   final String? title;
+  @override
+  final int? workingDays;
+  @override
+  final int? workingHours;
 
   @override
   String toString() {
-    return 'SalaryModel(id: $id, amount: $amount, date: $date, source: $source, title: $title)';
+    return 'SalaryModel(id: $id, amount: $amount, date: $date, source: $source, title: $title, workingDays: $workingDays, workingHours: $workingHours)';
   }
 
   @override
@@ -207,12 +239,25 @@ class _$SalaryModelImpl implements _SalaryModel {
             (identical(other.amount, amount) || other.amount == amount) &&
             (identical(other.date, date) || other.date == date) &&
             (identical(other.source, source) || other.source == source) &&
-            (identical(other.title, title) || other.title == title));
+            (identical(other.title, title) || other.title == title) &&
+            (identical(other.workingDays, workingDays) ||
+                other.workingDays == workingDays) &&
+            (identical(other.workingHours, workingHours) ||
+                other.workingHours == workingHours));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, id, amount, date, source, title);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    amount,
+    date,
+    source,
+    title,
+    workingDays,
+    workingHours,
+  );
 
   /// Create a copy of SalaryModel
   /// with the given fields replaced by the non-null parameter values.
@@ -235,6 +280,8 @@ abstract class _SalaryModel implements SalaryModel {
     required final DateTime date,
     final String source,
     final String? title,
+    final int? workingDays,
+    final int? workingHours,
   }) = _$SalaryModelImpl;
 
   factory _SalaryModel.fromJson(Map<String, dynamic> json) =
@@ -250,6 +297,10 @@ abstract class _SalaryModel implements SalaryModel {
   String get source;
   @override
   String? get title;
+  @override
+  int? get workingDays;
+  @override
+  int? get workingHours;
 
   /// Create a copy of SalaryModel
   /// with the given fields replaced by the non-null parameter values.

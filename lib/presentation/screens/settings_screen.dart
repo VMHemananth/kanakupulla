@@ -9,7 +9,6 @@ import '../providers/fixed_expense_provider.dart';
 import '../providers/recurring_income_provider.dart';
 
 import '../providers/theme_provider.dart';
-import '../../data/services/pdf_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -20,7 +19,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final BackupService _backupService = BackupService();
-  final PdfService _pdfService = PdfService();
   bool _isLoading = false;
 
   Future<void> _createBackup() async {
@@ -79,29 +77,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _generatePdf() async {
-    setState(() => _isLoading = true);
-    try {
-      final expensesAsync = ref.read(expensesProvider);
-      if (expensesAsync.hasValue) {
-        await _pdfService.generateExpenseReport(expensesAsync.value!);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No expenses to export')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('PDF generation failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -125,13 +101,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                 ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.picture_as_pdf),
-                  title: const Text('Export PDF Report'),
-                  subtitle: const Text('Generate a PDF report of your expenses'),
-                  onTap: _generatePdf,
-                ),
+
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.backup),

@@ -13,6 +13,8 @@ _$SalaryModelImpl _$$SalaryModelImplFromJson(Map<String, dynamic> json) =>
       date: DateTime.parse(json['date'] as String),
       source: json['source'] as String? ?? 'Salary',
       title: json['title'] as String?,
+      workingDays: (json['workingDays'] as num?)?.toInt(),
+      workingHours: (json['workingHours'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$$SalaryModelImplToJson(_$SalaryModelImpl instance) =>
@@ -22,4 +24,6 @@ Map<String, dynamic> _$$SalaryModelImplToJson(_$SalaryModelImpl instance) =>
       'date': instance.date.toIso8601String(),
       'source': instance.source,
       'title': instance.title,
+      'workingDays': instance.workingDays,
+      'workingHours': instance.workingHours,
     };

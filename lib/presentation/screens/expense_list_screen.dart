@@ -2,7 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/expense_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/time_cost_provider.dart';
 import 'add_expense_screen.dart';
+
+enum SortOption {
+  dateNewest,
+  dateOldest,
+  amountHighLow,
+  amountLowHigh,
+}
 
 class ExpenseListScreen extends ConsumerStatefulWidget {
   const ExpenseListScreen({super.key});
@@ -16,6 +24,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
   String _searchQuery = '';
   String? _selectedCategory;
   DateTimeRange? _selectedDateRange;
+  SortOption _sortOption = SortOption.dateNewest;
 
   @override
   void dispose() {
@@ -68,6 +77,33 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
           ),
         ),
         actions: [
+          PopupMenuButton<SortOption>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort by',
+            onSelected: (SortOption result) {
+              setState(() {
+                _sortOption = result;
+              });
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
+              const PopupMenuItem<SortOption>(
+                value: SortOption.dateNewest,
+                child: Text('Date: Newest First'),
+              ),
+              const PopupMenuItem<SortOption>(
+                value: SortOption.dateOldest,
+                child: Text('Date: Oldest First'),
+              ),
+              const PopupMenuItem<SortOption>(
+                value: SortOption.amountHighLow,
+                child: Text('Amount: High to Low'),
+              ),
+              const PopupMenuItem<SortOption>(
+                value: SortOption.amountLowHigh,
+                child: Text('Amount: Low to High'),
+              ),
+            ],
+          ),
           IconButton(
             icon: Icon(
               Icons.filter_list,
@@ -82,7 +118,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
       body: expensesAsync.when(
         data: (expenses) {
           // Apply Filters
-          final filteredExpenses = expenses.where((expense) {
+          var filteredExpenses = expenses.where((expense) {
             // Search Filter
             if (_searchQuery.isNotEmpty &&
                 !expense.title.toLowerCase().contains(_searchQuery.toLowerCase())) {
@@ -101,6 +137,22 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
             }
             return true;
           }).toList();
+
+          // Apply Sorting
+          switch (_sortOption) {
+            case SortOption.dateNewest:
+              filteredExpenses.sort((a, b) => b.date.compareTo(a.date));
+              break;
+            case SortOption.dateOldest:
+              filteredExpenses.sort((a, b) => a.date.compareTo(b.date));
+              break;
+            case SortOption.amountHighLow:
+              filteredExpenses.sort((a, b) => b.amount.compareTo(a.amount));
+              break;
+            case SortOption.amountLowHigh:
+              filteredExpenses.sort((a, b) => a.amount.compareTo(b.amount));
+              break;
+          }
 
           if (filteredExpenses.isEmpty) {
             return const Center(child: Text('No expenses found matching criteria.'));
@@ -125,8 +177,28 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                 },
                 child: ListTile(
                   title: Text(expense.title),
-                  subtitle: Text(
-                      '${expense.category} • ${expense.date.day}/${expense.date.month}/${expense.date.year}'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${expense.category} • ${expense.date.day}/${expense.date.month}/${expense.date.year}'),
+                      FutureBuilder<String>(
+                        future: ref.read(timeCostProvider).calculateTimeCost(expense),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                            return Text(
+                              'Time Cost: ${snapshot.data}',
+                              style: TextStyle(
+                                color: Colors.orange[700],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ],
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
