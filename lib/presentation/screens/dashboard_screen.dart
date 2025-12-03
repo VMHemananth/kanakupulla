@@ -9,6 +9,7 @@ import '../widgets/salary_card.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/expense_chart.dart';
 import '../widgets/recent_expenses.dart';
+import '../widgets/credit_usage_card.dart';
 import 'add_expense_screen.dart';
 import 'expense_list_screen.dart';
 import 'monthly_compare_screen.dart';
@@ -18,16 +19,25 @@ import 'analysis_screen.dart';
 import 'manage_categories_and_budgets_screen.dart';
 import 'manage_fixed_expenses_screen.dart';
 import 'manage_recurring_income_screen.dart';
+import 'manage_credit_cards_screen.dart';
 import '../providers/salary_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/sms_provider.dart';
 import '../../core/utils/csv_exporter.dart';
 import '../providers/fixed_expense_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/credit_card_provider.dart';
+import '../../data/repositories/credit_card_repository.dart';
+import '../../data/repositories/expense_repository.dart';
 import '../../data/models/expense_model.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import '../../data/services/pdf_service.dart';
+import 'search_screen.dart';
+import 'debt_list_screen.dart';
+import 'savings_list_screen.dart';
+import 'split/group_list_screen.dart';
+import '../../data/services/widget_service.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -44,6 +54,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final date = ref.read(selectedDateProvider);
       _checkFixedExpenses(date);
+      _checkCreditCardBills();
     });
   }
 
@@ -80,6 +91,62 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
+  Future<void> _checkCreditCardBills() async {
+    // Check for bills using repository directly
+    // Actually, provider returns void on load. Let's use repository directly or watch provider.
+    // Better: use ref.read(creditCardRepositoryProvider).getCreditCards();
+    final repo = ref.read(creditCardRepositoryProvider);
+    final cardsList = await repo.getCreditCards();
+    final now = DateTime.now();
+    final currentMonthStr = '${now.year}-${now.month}';
+
+    for (var card in cardsList) {
+      if (now.day >= card.billingDay && card.lastBillGeneratedMonth != currentMonthStr) {
+        // Generate Bill
+        // Cycle: From [Month-1, BillingDay] to [Month, BillingDay - 1]
+        final cycleEnd = DateTime(now.year, now.month, card.billingDay - 1, 23, 59, 59);
+        final cycleStart = DateTime(now.year, now.month - 1, card.billingDay);
+        
+        final allExpenses = await ref.read(expenseRepositoryProvider).getExpenses();
+        final cycleExpenses = allExpenses.where((e) => 
+          e.creditCardId == card.id && 
+          e.date.isAfter(cycleStart.subtract(const Duration(seconds: 1))) && 
+          e.date.isBefore(cycleEnd.add(const Duration(seconds: 1)))
+        ).toList();
+
+        final totalAmount = cycleExpenses.fold(0.0, (sum, e) => sum + e.amount);
+
+        if (totalAmount > 0) {
+          final billExpense = ExpenseModel(
+            id: 'bill_${card.id}_${now.year}_${now.month}',
+            title: '${card.name} Bill',
+            amount: totalAmount,
+            date: DateTime(now.year, now.month + 1, card.billingDay), // Next month
+            category: 'Bills',
+            paymentMethod: 'Bank Transfer', // Default
+            isCreditCardBill: true,
+          );
+
+          await ref.read(expensesProvider.notifier).addExpense(billExpense);
+          
+          // Update card
+          final updatedCard = card.copyWith(lastBillGeneratedMonth: currentMonthStr);
+          await repo.updateCreditCard(updatedCard);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Generated ${card.name} bill: ₹$totalAmount')),
+            );
+          }
+        } else {
+          // No expenses, but mark as checked to avoid re-checking
+           final updatedCard = card.copyWith(lastBillGeneratedMonth: currentMonthStr);
+           await repo.updateCreditCard(updatedCard);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final date = ref.watch(selectedDateProvider);
@@ -94,11 +161,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     ref.listen(fixedExpensesProvider, (previous, next) {
       _checkFixedExpenses(date);
     });
+
+    // Calculate Balance for Widget
+    final expensesAsync = ref.watch(expensesProvider);
+    final incomeAsync = ref.watch(salaryProvider);
+    
+    final totalExpense = expensesAsync.value?.fold(0.0, (sum, e) => sum! + e.amount) ?? 0.0;
+    final totalIncome = incomeAsync.value?.fold(0.0, (sum, e) => sum! + e.amount) ?? 0.0;
+    final balance = totalIncome - totalExpense;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetService().updateWidget(balance);
+    });
     
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kanakupulla'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SearchScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.calendar_today),
             onPressed: () async {
@@ -205,6 +293,50 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const ManageRecurringIncomeScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.credit_card),
+              title: const Text('Credit Cards'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ManageCreditCardsScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.money_off),
+              title: const Text('Debts & Loans'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const DebtListScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.group),
+              title: const Text('Bill Split'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const GroupListScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.savings),
+              title: const Text('Savings Goals'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SavingsListScreen()),
                 );
               },
             ),
@@ -346,6 +478,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ],
                 );
               }),
+              const CreditUsageCard(),
+              const SizedBox(height: 16),
               const SalaryCard(),
               const SizedBox(height: 16),
               const BudgetCard(),

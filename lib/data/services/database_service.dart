@@ -15,7 +15,7 @@ class DatabaseService {
     
     _db = await openDatabase(
       fullPath,
-      version: 6,
+      version: 11,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE expenses (
@@ -24,14 +24,17 @@ class DatabaseService {
             amount REAL,
             date TEXT,
             category TEXT,
-            paymentMethod TEXT
+            paymentMethod TEXT,
+            creditCardId TEXT,
+            isCreditCardBill INTEGER DEFAULT 0
           )
         ''');
         await db.execute('''
           CREATE TABLE budgets (
             id TEXT PRIMARY KEY,
-            month TEXT,
             amount REAL,
+            month INTEGER,
+            year INTEGER,
             category TEXT
           )
         ''');
@@ -41,7 +44,9 @@ class DatabaseService {
             amount REAL,
             date TEXT,
             source TEXT,
-            title TEXT
+            title TEXT,
+            workingDays INTEGER,
+            workingHours INTEGER
           )
         ''');
         await db.execute('''
@@ -69,6 +74,70 @@ class DatabaseService {
             isAutoAdd INTEGER
           )
         ''');
+        await db.execute('''
+          CREATE TABLE credit_cards (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            billingDay INTEGER,
+            lastBillGeneratedMonth TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE debts (
+            id TEXT PRIMARY KEY,
+            personName TEXT,
+            amount REAL,
+            type TEXT,
+            date TEXT,
+            dueDate TEXT,
+            description TEXT,
+            isSettled INTEGER DEFAULT 0
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE savings_goals (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            targetAmount REAL,
+            currentAmount REAL,
+            deadline TEXT,
+            icon TEXT,
+            color INTEGER
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE groups (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            created_at TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE group_members (
+            id TEXT PRIMARY KEY,
+            group_id TEXT,
+            name TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE split_expenses (
+            id TEXT PRIMARY KEY,
+            group_id TEXT,
+            title TEXT,
+            amount REAL,
+            paid_by_member_id TEXT,
+            date TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE expense_shares (
+            id TEXT PRIMARY KEY,
+            expense_id TEXT,
+            member_id TEXT,
+            amount REAL
+          )
+        ''');
+        
         // Default categories
         await db.insert('categories', {'name': 'Food', 'type': 'Need'});
         await db.insert('categories', {'name': 'Transport', 'type': 'Need'});
@@ -82,8 +151,7 @@ class DatabaseService {
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          await db.execute("ALTER TABLE salaries ADD COLUMN source TEXT DEFAULT 'Salary'");
-          await db.execute("ALTER TABLE salaries ADD COLUMN title TEXT");
+          await db.execute("ALTER TABLE expenses ADD COLUMN paymentMethod TEXT");
         }
         if (oldVersion < 3) {
           try {
@@ -125,6 +193,86 @@ class DatabaseService {
         if (oldVersion < 6) {
           await db.execute("ALTER TABLE salaries ADD COLUMN workingDays INTEGER");
           await db.execute("ALTER TABLE salaries ADD COLUMN workingHours INTEGER");
+        }
+        if (oldVersion < 7) {
+          await db.execute('''
+            CREATE TABLE credit_cards (
+              id TEXT PRIMARY KEY,
+              name TEXT,
+              billingDay INTEGER,
+              lastBillGeneratedMonth TEXT
+            )
+          ''');
+          try {
+            await db.execute("ALTER TABLE expenses ADD COLUMN creditCardId TEXT");
+            await db.execute("ALTER TABLE expenses ADD COLUMN isCreditCardBill INTEGER DEFAULT 0");
+          } catch (e) {
+            // Ignore
+          }
+        }
+        if (oldVersion < 8) {
+          await db.execute('''
+            CREATE TABLE debts (
+              id TEXT PRIMARY KEY,
+              personName TEXT,
+              amount REAL,
+              type TEXT,
+              date TEXT,
+              dueDate TEXT,
+              description TEXT,
+              isSettled INTEGER DEFAULT 0
+            )
+          ''');
+        }
+        if (oldVersion < 9) {
+          await db.execute('''
+            CREATE TABLE savings_goals (
+              id TEXT PRIMARY KEY,
+              name TEXT,
+              targetAmount REAL,
+              currentAmount REAL,
+              deadline TEXT,
+              icon TEXT,
+              color INTEGER
+            )
+          ''');
+        }
+
+        if (oldVersion < 10) {
+          await db.execute('''
+            CREATE TABLE groups (
+              id TEXT PRIMARY KEY,
+              name TEXT,
+              created_at TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE group_members (
+              id TEXT PRIMARY KEY,
+              group_id TEXT,
+              name TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE split_expenses (
+              id TEXT PRIMARY KEY,
+              group_id TEXT,
+              title TEXT,
+              amount REAL,
+              paid_by_member_id TEXT,
+              date TEXT
+            )
+          ''');
+        }
+        if (oldVersion < 11) {
+          await db.execute('''
+            CREATE TABLE expense_shares (
+              id TEXT PRIMARY KEY,
+              expense_id TEXT,
+              member_id TEXT,
+              amount REAL
+            )
+          ''');
         }
       },
     );

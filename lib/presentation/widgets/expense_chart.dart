@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/expense_provider.dart';
+import '../../core/utils/category_colors.dart';
 
 class ExpenseChart extends ConsumerStatefulWidget {
   const ExpenseChart({super.key});
@@ -34,9 +35,13 @@ class _ExpenseChartState extends ConsumerState<ExpenseChart> {
                   final Map<String, double> categoryTotals = {};
                   double total = 0;
                   for (var e in expenses) {
+                    if (e.amount <= 0) continue; // Skip invalid amounts
+                    if (e.paymentMethod == 'Credit Card' && !e.isCreditCardBill) continue;
                     categoryTotals[e.category] = (categoryTotals[e.category] ?? 0) + e.amount;
                     total += e.amount;
                   }
+
+                  if (total <= 0) return const Center(child: Text('No Data'));
 
                   final entries = categoryTotals.entries.toList();
 
@@ -66,13 +71,13 @@ class _ExpenseChartState extends ConsumerState<ExpenseChart> {
                                 centerSpaceRadius: 40,
                                 sections: List.generate(entries.length, (i) {
                                   final isTouched = i == touchedIndex;
-                                  final fontSize = isTouched ? 16.0 : 12.0;
-                                  final radius = isTouched ? 60.0 : 50.0;
+                                  final fontSize = isTouched ? 18.0 : 12.0;
+                                  final radius = isTouched ? 70.0 : 50.0;
                                   final entry = entries[i];
                                   final percentage = (entry.value / total) * 100;
                                   
                                   return PieChartSectionData(
-                                    color: Colors.primaries[i % Colors.primaries.length],
+                                    color: CategoryColors.getColor(entry.key),
                                     value: entry.value,
                                     title: '${percentage.toStringAsFixed(0)}%',
                                     radius: radius,
@@ -81,6 +86,9 @@ class _ExpenseChartState extends ConsumerState<ExpenseChart> {
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white,
                                     ),
+                                    borderSide: isTouched 
+                                      ? const BorderSide(color: Colors.white, width: 2) 
+                                      : BorderSide.none,
                                   );
                                 }),
                               ),
@@ -92,14 +100,21 @@ class _ExpenseChartState extends ConsumerState<ExpenseChart> {
                                   touchedIndex != -1 && touchedIndex < entries.length
                                       ? entries[touchedIndex].key
                                       : 'Total',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
                                   textAlign: TextAlign.center,
                                 ),
                                 Text(
                                   touchedIndex != -1 && touchedIndex < entries.length
                                       ? '₹${entries[touchedIndex].value.toStringAsFixed(0)}'
                                       : '₹${total.toStringAsFixed(0)}',
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                    fontSize: 18, 
+                                    fontWeight: FontWeight.bold, 
+                                    color: touchedIndex != -1 && touchedIndex < entries.length
+                                      ? CategoryColors.getColor(entries[touchedIndex].key)
+                                      : Colors.black
+                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
                               ],
                             ),
@@ -115,29 +130,44 @@ class _ExpenseChartState extends ConsumerState<ExpenseChart> {
                              final index = e.key;
                              final entry = e.value;
                              final isTouched = index == touchedIndex;
-                             return Padding(
-                               padding: const EdgeInsets.symmetric(vertical: 2.0),
-                               child: Row(
-                                 children: [
-                                   Container(
-                                     width: 12, height: 12,
-                                     decoration: BoxDecoration(
-                                       color: Colors.primaries[index % Colors.primaries.length],
-                                       shape: BoxShape.circle,
+                             return InkWell(
+                               onTap: () {
+                                 setState(() {
+                                   if (touchedIndex == index) {
+                                     touchedIndex = -1; // Toggle off
+                                   } else {
+                                     touchedIndex = index;
+                                   }
+                                 });
+                               },
+                               child: Padding(
+                                 padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                 child: Row(
+                                   children: [
+                                     AnimatedContainer(
+                                       duration: const Duration(milliseconds: 300),
+                                       width: isTouched ? 16 : 12, 
+                                       height: isTouched ? 16 : 12,
+                                       decoration: BoxDecoration(
+                                         color: CategoryColors.getColor(entry.key),
+                                         shape: BoxShape.circle,
+                                         border: isTouched ? Border.all(color: CategoryColors.getColor(entry.key), width: 2) : null,
+                                       ),
                                      ),
-                                   ),
-                                   const SizedBox(width: 8),
-                                   Expanded(
-                                     child: Text(
-                                       entry.key, 
-                                       style: TextStyle(
-                                         fontSize: 12, 
-                                         fontWeight: isTouched ? FontWeight.bold : FontWeight.normal
-                                       ), 
-                                       overflow: TextOverflow.ellipsis
-                                     )
-                                   ),
-                                 ],
+                                     const SizedBox(width: 8),
+                                     Expanded(
+                                       child: Text(
+                                         entry.key, 
+                                         style: TextStyle(
+                                           fontSize: isTouched ? 14 : 12, 
+                                           fontWeight: isTouched ? FontWeight.bold : FontWeight.normal,
+                                           color: isTouched ? CategoryColors.getColor(entry.key) : Colors.grey[800],
+                                         ), 
+                                         overflow: TextOverflow.ellipsis
+                                       )
+                                     ),
+                                   ],
+                                 ),
                                ),
                              );
                           }).toList(),

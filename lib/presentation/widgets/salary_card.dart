@@ -12,7 +12,9 @@ class SalaryCard extends ConsumerWidget {
     final expensesAsync = ref.watch(expensesProvider);
     final salaryAsync = ref.watch(salaryProvider);
 
-    final totalExpenses = expensesAsync.value?.fold(0.0, (sum, item) => sum! + item.amount) ?? 0.0;
+    final totalExpenses = expensesAsync.value
+            ?.where((e) => e.paymentMethod != 'Credit Card' || e.isCreditCardBill)
+            .fold(0.0, (sum, item) => sum! + item.amount) ?? 0.0;
     final totalIncome = salaryAsync.value?.fold(0.0, (sum, item) => sum! + item.amount) ?? 0.0;
     final balance = totalIncome - totalExpenses;
     final progress = totalIncome > 0 ? (totalExpenses / totalIncome).clamp(0.0, 1.0) : 0.0;

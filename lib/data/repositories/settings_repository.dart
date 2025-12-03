@@ -61,4 +61,12 @@ class SettingsRepository {
   bool isLoggedIn() {
     return _prefs.getBool('isLoggedIn') ?? false;
   }
+
+  Future<void> setAppLockEnabled(bool enabled) async {
+    await _prefs.setBool('isAppLockEnabled', enabled);
+  }
+
+  bool isAppLockEnabled() {
+    return _prefs.getBool('isAppLockEnabled') ?? false;
+  }
 }

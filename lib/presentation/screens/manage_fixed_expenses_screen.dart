@@ -118,15 +118,20 @@ class ManageFixedExpensesScreen extends ConsumerWidget {
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
               ElevatedButton(
                 onPressed: () {
+                  final amount = double.tryParse(amountController.text);
+                  final day = int.tryParse(dayController.text);
+
                   if (titleController.text.isNotEmpty && 
-                      amountController.text.isNotEmpty && 
-                      selectedCategory != null) {
+                      amount != null && amount > 0 &&
+                      selectedCategory != null &&
+                      day != null && day >= 1 && day <= 31) {
+                    
                     final newExpense = FixedExpenseModel(
                       id: expense?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
                       title: titleController.text,
-                      amount: double.parse(amountController.text),
+                      amount: amount,
                       category: selectedCategory!,
-                      dayOfMonth: int.tryParse(dayController.text) ?? 1,
+                      dayOfMonth: day,
                       isAutoAdd: isAutoAdd,
                     );
                     
@@ -137,7 +142,6 @@ class ManageFixedExpensesScreen extends ConsumerWidget {
                     }
 
                     // Schedule notification
-                    final day = int.tryParse(dayController.text) ?? 1;
                     final reminderDay = day > 1 ? day - 1 : 1; // Simple logic: remind 1 day before
                     ref.read(notificationServiceProvider).scheduleMonthlyNotification(
                       id: newExpense.id.hashCode,
@@ -147,6 +151,10 @@ class ManageFixedExpensesScreen extends ConsumerWidget {
                     );
 
                     Navigator.pop(ctx);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter valid details (Amount > 0, Day 1-31)')),
+                    );
                   }
                 },
                 child: Text(expense == null ? 'Add' : 'Update'),

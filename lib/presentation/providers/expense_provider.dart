@@ -2,18 +2,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/repositories/expense_repository.dart';
 import 'date_provider.dart';
+import 'budget_provider.dart';
+import '../../data/services/notification_service.dart';
 
 final expensesProvider = StateNotifierProvider<ExpensesNotifier, AsyncValue<List<ExpenseModel>>>((ref) {
   final repository = ref.watch(expenseRepositoryProvider);
   final date = ref.watch(selectedDateProvider);
-  return ExpensesNotifier(repository, date);
+  return ExpensesNotifier(repository, date, ref);
 });
 
 class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
   final ExpenseRepository _repository;
   final DateTime _date;
+  final Ref _ref;
 
-  ExpensesNotifier(this._repository, this._date) : super(const AsyncValue.loading()) {
+  ExpensesNotifier(this._repository, this._date, this._ref) : super(const AsyncValue.loading()) {
     loadExpenses();
   }
 
@@ -35,6 +38,25 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
     try {
       await _repository.addExpense(expense);
       await loadExpenses();
+      
+      // Check budget
+      final budget = _ref.read(budgetProvider).value;
+      if (budget != null) {
+        final totalExpenses = state.value?.fold(0.0, (sum, e) => sum! + e.amount) ?? 0.0;
+        final percentage = totalExpenses / budget.amount;
+        
+        if (percentage >= 1.0) {
+          _ref.read(notificationServiceProvider).showBudgetAlert(
+            'Budget Exceeded!',
+            'You have exceeded your monthly budget of ₹${budget.amount.toStringAsFixed(0)}.',
+          );
+        } else if (percentage >= 0.9) {
+          _ref.read(notificationServiceProvider).showBudgetAlert(
+            'Budget Alert',
+            'You have used ${(percentage * 100).toStringAsFixed(0)}% of your monthly budget.',
+          );
+        }
+      }
     } catch (e) {
       // Handle error (maybe show snackbar via listener in UI)
     }

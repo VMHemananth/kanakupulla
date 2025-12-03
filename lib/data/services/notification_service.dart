@@ -45,22 +45,51 @@ class NotificationService {
     );
   }
 
+  Future<void> showBudgetAlert(String title, String body) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'budget_alerts',
+      'Budget Alerts',
+      channelDescription: 'Notifications for budget thresholds',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await _notificationsPlugin.show(
+      999, // Fixed ID for budget alerts
+      title,
+      body,
+      platformChannelSpecifics,
+    );
+  }
+
   tz.TZDateTime _nextInstanceOfDay(int day) {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, day, 10, 0); // 10 AM
-
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-      // Logic to find next month's day is complex due to varying month lengths
-      // For simplicity, we just add days until we hit the day next month
-      // Or better, just add 1 month roughly. 
-      // Correct way:
-      if (now.month == 12) {
-        scheduledDate = tz.TZDateTime(tz.local, now.year + 1, 1, day, 10, 0);
-      } else {
-        scheduledDate = tz.TZDateTime(tz.local, now.year, now.month + 1, day, 10, 0);
-      }
+    
+    // Helper to get valid day for a month
+    int getValidDay(int year, int month, int requestedDay) {
+      final daysInMonth = DateTime(year, month + 1, 0).day;
+      return requestedDay > daysInMonth ? daysInMonth : requestedDay;
     }
+
+    // Try to schedule for this month
+    int validDay = getValidDay(now.year, now.month, day);
+    tz.TZDateTime scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, validDay, 10, 0);
+
+    // If this month's date is in the past, schedule for next month
+    if (scheduledDate.isBefore(now)) {
+      int nextMonth = now.month + 1;
+      int nextYear = now.year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear = now.year + 1;
+      }
+      
+      validDay = getValidDay(nextYear, nextMonth, day);
+      scheduledDate = tz.TZDateTime(tz.local, nextYear, nextMonth, validDay, 10, 0);
+    }
+    
     return scheduledDate;
   }
 

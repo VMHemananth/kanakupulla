@@ -4,6 +4,9 @@ import '../../data/models/expense_model.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/credit_card_provider.dart';
+import '../../data/services/ocr_service.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
@@ -25,6 +28,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   late DateTime _selectedDate;
   String? _selectedCategory;
   String _paymentMethod = 'Salary';
+  String? _selectedCreditCardId;
   
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _isListening = false;
@@ -37,8 +41,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     // If initialDate is provided, use it.
     // However, if initialDate is just the 1st of the current month (default behavior of dashboard),
     // we prefer showing today's date for better UX.
-    if (widget.initialDate != null) {
+    if (widget.expense != null) {
+      _selectedDate = widget.expense!.date;
+    } else if (widget.initialDate != null) {
       final now = DateTime.now();
+      // If initialDate is just the 1st of the current month (default behavior of dashboard),
+      // we prefer showing today's date for better UX.
       if (widget.initialDate!.year == now.year && 
           widget.initialDate!.month == now.month && 
           widget.initialDate!.day == 1) {
@@ -47,11 +55,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         _selectedDate = widget.initialDate!;
       }
     } else {
-      _selectedDate = widget.expense?.date ?? DateTime.now();
+      _selectedDate = DateTime.now();
     }
     
     _selectedCategory = widget.expense?.category;
     _paymentMethod = widget.expense?.paymentMethod ?? 'Salary';
+    _selectedCreditCardId = widget.expense?.creditCardId;
   }
 
   @override
@@ -126,6 +135,86 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Parsed: "$text"')),
     );
+
+  }
+
+  Future<void> _scanReceipt() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take Photo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      if (source == ImageSource.camera) {
+        final status = await Permission.camera.request();
+        if (status.isDenied || status.isPermanentlyDenied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Camera permission is required to scan receipts')),
+            );
+          }
+          return;
+        }
+      }
+
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: source);
+      
+      if (image != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Scanning receipt...')),
+          );
+        }
+
+        final ocrService = ref.read(ocrServiceProvider);
+        final result = await ocrService.scanReceipt(image.path);
+
+        setState(() {
+          if (result['merchant'] != 'Unknown Merchant') {
+            _titleController.text = result['merchant'];
+          }
+          if (result['amount'] > 0) {
+            _amountController.text = result['amount'].toString();
+          }
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Scanned: ${result['merchant']}, ₹${result['amount']}')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error scanning receipt: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -134,7 +223,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     final categories = categoriesAsync.value?.map((e) => e.name).toList() ?? [];
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.expense == null ? 'Add Expense' : 'Edit Expense')),
+      appBar: AppBar(
+        title: Text(widget.expense == null ? 'Add Expense' : 'Edit Expense'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.camera_alt),
+            tooltip: 'Scan Receipt',
+            onPressed: _scanReceipt,
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -169,7 +267,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 controller: _amountController,
                 decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
                 keyboardType: TextInputType.number,
-                validator: (value) => value == null || double.tryParse(value) == null ? 'Please enter a valid amount' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter an amount';
+                  }
+                  final amount = double.tryParse(value);
+                  if (amount == null || amount <= 0) {
+                    return 'Please enter a valid amount > 0';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
@@ -189,8 +296,37 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   DropdownMenuItem(value: 'Cash', child: Text('Cash')),
                   DropdownMenuItem(value: 'UPI', child: Text('UPI')),
                 ],
-                onChanged: (val) => setState(() => _paymentMethod = val!),
+                onChanged: (val) => setState(() {
+                  _paymentMethod = val!;
+                  if (_paymentMethod != 'Credit Card') {
+                    _selectedCreditCardId = null;
+                  }
+                }),
               ),
+              if (_paymentMethod == 'Credit Card') ...[
+                const SizedBox(height: 16),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final cardsAsync = ref.watch(creditCardProvider);
+                    return cardsAsync.when(
+                      data: (cards) {
+                        if (cards.isEmpty) {
+                          return const Text('No credit cards found. Please add one in Settings.', style: TextStyle(color: Colors.red));
+                        }
+                        return DropdownButtonFormField<String>(
+                          value: _selectedCreditCardId,
+                          decoration: const InputDecoration(labelText: 'Select Credit Card', border: OutlineInputBorder()),
+                          items: cards.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                          onChanged: (val) => setState(() => _selectedCreditCardId = val),
+                          validator: (value) => value == null ? 'Please select a card' : null,
+                        );
+                      },
+                      loading: () => const CircularProgressIndicator(),
+                      error: (e, _) => Text('Error: $e'),
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 16),
               ListTile(
                 title: const Text('Date'),
@@ -243,6 +379,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         date: _selectedDate,
         category: _selectedCategory!,
         paymentMethod: _paymentMethod,
+        creditCardId: _selectedCreditCardId,
       );
 
       if (widget.expense == null) {

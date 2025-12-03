@@ -14,6 +14,8 @@ _$ExpenseModelImpl _$$ExpenseModelImplFromJson(Map<String, dynamic> json) =>
       date: DateTime.parse(json['date'] as String),
       category: json['category'] as String,
       paymentMethod: json['paymentMethod'] as String?,
+      creditCardId: json['creditCardId'] as String?,
+      isCreditCardBill: json['isCreditCardBill'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$ExpenseModelImplToJson(_$ExpenseModelImpl instance) =>
@@ -24,4 +26,6 @@ Map<String, dynamic> _$$ExpenseModelImplToJson(_$ExpenseModelImpl instance) =>
       'date': instance.date.toIso8601String(),
       'category': instance.category,
       'paymentMethod': instance.paymentMethod,
+      'creditCardId': instance.creditCardId,
+      'isCreditCardBill': instance.isCreditCardBill,
     };

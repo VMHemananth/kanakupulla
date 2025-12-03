@@ -16,7 +16,14 @@ class ExpenseRepository {
   Future<List<ExpenseModel>> getExpenses() async {
     final db = await _dbService.database;
     final maps = await db.query('expenses', orderBy: 'date DESC');
-    return maps.map((e) => ExpenseModel.fromJson(e)).toList();
+    return maps.map((e) {
+      final mutableMap = Map<String, dynamic>.from(e);
+      // Manually convert int to bool for isCreditCardBill
+      if (mutableMap['isCreditCardBill'] is int) {
+        mutableMap['isCreditCardBill'] = (mutableMap['isCreditCardBill'] as int) == 1;
+      }
+      return ExpenseModel.fromJson(mutableMap);
+    }).toList();
   }
 
   Future<void> addExpense(ExpenseModel expense) async {

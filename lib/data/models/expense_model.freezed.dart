@@ -27,6 +27,8 @@ mixin _$ExpenseModel {
   DateTime get date => throw _privateConstructorUsedError;
   String get category => throw _privateConstructorUsedError;
   String? get paymentMethod => throw _privateConstructorUsedError;
+  String? get creditCardId => throw _privateConstructorUsedError;
+  bool get isCreditCardBill => throw _privateConstructorUsedError;
 
   /// Serializes this ExpenseModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -52,6 +54,8 @@ abstract class $ExpenseModelCopyWith<$Res> {
     DateTime date,
     String category,
     String? paymentMethod,
+    String? creditCardId,
+    bool isCreditCardBill,
   });
 }
 
@@ -76,6 +80,8 @@ class _$ExpenseModelCopyWithImpl<$Res, $Val extends ExpenseModel>
     Object? date = null,
     Object? category = null,
     Object? paymentMethod = freezed,
+    Object? creditCardId = freezed,
+    Object? isCreditCardBill = null,
   }) {
     return _then(
       _value.copyWith(
@@ -103,6 +109,14 @@ class _$ExpenseModelCopyWithImpl<$Res, $Val extends ExpenseModel>
                 ? _value.paymentMethod
                 : paymentMethod // ignore: cast_nullable_to_non_nullable
                       as String?,
+            creditCardId: freezed == creditCardId
+                ? _value.creditCardId
+                : creditCardId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            isCreditCardBill: null == isCreditCardBill
+                ? _value.isCreditCardBill
+                : isCreditCardBill // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -125,6 +139,8 @@ abstract class _$$ExpenseModelImplCopyWith<$Res>
     DateTime date,
     String category,
     String? paymentMethod,
+    String? creditCardId,
+    bool isCreditCardBill,
   });
 }
 
@@ -148,6 +164,8 @@ class __$$ExpenseModelImplCopyWithImpl<$Res>
     Object? date = null,
     Object? category = null,
     Object? paymentMethod = freezed,
+    Object? creditCardId = freezed,
+    Object? isCreditCardBill = null,
   }) {
     return _then(
       _$ExpenseModelImpl(
@@ -175,6 +193,14 @@ class __$$ExpenseModelImplCopyWithImpl<$Res>
             ? _value.paymentMethod
             : paymentMethod // ignore: cast_nullable_to_non_nullable
                   as String?,
+        creditCardId: freezed == creditCardId
+            ? _value.creditCardId
+            : creditCardId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        isCreditCardBill: null == isCreditCardBill
+            ? _value.isCreditCardBill
+            : isCreditCardBill // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -190,6 +216,8 @@ class _$ExpenseModelImpl implements _ExpenseModel {
     required this.date,
     required this.category,
     this.paymentMethod,
+    this.creditCardId,
+    this.isCreditCardBill = false,
   });
 
   factory _$ExpenseModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -207,10 +235,15 @@ class _$ExpenseModelImpl implements _ExpenseModel {
   final String category;
   @override
   final String? paymentMethod;
+  @override
+  final String? creditCardId;
+  @override
+  @JsonKey()
+  final bool isCreditCardBill;
 
   @override
   String toString() {
-    return 'ExpenseModel(id: $id, title: $title, amount: $amount, date: $date, category: $category, paymentMethod: $paymentMethod)';
+    return 'ExpenseModel(id: $id, title: $title, amount: $amount, date: $date, category: $category, paymentMethod: $paymentMethod, creditCardId: $creditCardId, isCreditCardBill: $isCreditCardBill)';
   }
 
   @override
@@ -225,7 +258,11 @@ class _$ExpenseModelImpl implements _ExpenseModel {
             (identical(other.category, category) ||
                 other.category == category) &&
             (identical(other.paymentMethod, paymentMethod) ||
-                other.paymentMethod == paymentMethod));
+                other.paymentMethod == paymentMethod) &&
+            (identical(other.creditCardId, creditCardId) ||
+                other.creditCardId == creditCardId) &&
+            (identical(other.isCreditCardBill, isCreditCardBill) ||
+                other.isCreditCardBill == isCreditCardBill));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -238,6 +275,8 @@ class _$ExpenseModelImpl implements _ExpenseModel {
     date,
     category,
     paymentMethod,
+    creditCardId,
+    isCreditCardBill,
   );
 
   /// Create a copy of ExpenseModel
@@ -262,6 +301,8 @@ abstract class _ExpenseModel implements ExpenseModel {
     required final DateTime date,
     required final String category,
     final String? paymentMethod,
+    final String? creditCardId,
+    final bool isCreditCardBill,
   }) = _$ExpenseModelImpl;
 
   factory _ExpenseModel.fromJson(Map<String, dynamic> json) =
@@ -279,6 +320,10 @@ abstract class _ExpenseModel implements ExpenseModel {
   String get category;
   @override
   String? get paymentMethod;
+  @override
+  String? get creditCardId;
+  @override
+  bool get isCreditCardBill;
 
   /// Create a copy of ExpenseModel
   /// with the given fields replaced by the non-null parameter values.

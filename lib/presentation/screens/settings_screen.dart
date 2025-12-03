@@ -9,6 +9,10 @@ import '../providers/fixed_expense_provider.dart';
 import '../providers/recurring_income_provider.dart';
 
 import '../providers/theme_provider.dart';
+import '../../data/services/export_service.dart';
+import '../../data/services/biometric_service.dart';
+import '../../data/repositories/settings_repository.dart';
+import '../providers/app_lock_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -101,7 +105,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                 ),
-
+                ListTile(
+                  leading: const Icon(Icons.security),
+                  title: const Text('App Lock'),
+                  subtitle: const Text('Secure with Biometrics/PIN'),
+                  trailing: Switch(
+                    value: ref.watch(appLockProvider),
+                    onChanged: (value) async {
+                      if (value) {
+                        // verify before enabling
+                        final success = await ref.read(biometricServiceProvider).authenticate();
+                        if (success) {
+                          await ref.read(appLockProvider.notifier).setAppLockEnabled(true);
+                        }
+                      } else {
+                        // verify before disabling
+                        final success = await ref.read(biometricServiceProvider).authenticate();
+                        if (success) {
+                          await ref.read(appLockProvider.notifier).setAppLockEnabled(false);
+                        }
+                      }
+                    },
+                  ),
+                ),
+                const Divider(),
+                // Export options removed as per request
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.backup),

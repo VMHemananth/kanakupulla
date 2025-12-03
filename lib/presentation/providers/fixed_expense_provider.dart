@@ -74,6 +74,9 @@ class FixedExpenseNotifier extends StateNotifier<AsyncValue<List<FixedExpenseMod
 
   Future<void> _syncToCurrentMonth(FixedExpenseModel fixed) async {
     final now = DateTime.now();
+    // Only add if today is on or after the fixed day
+    if (now.day < fixed.dayOfMonth) return;
+
     final deterministicId = '${fixed.id}_${now.year}_${now.month}';
     
     final expense = ExpenseModel(
@@ -103,6 +106,16 @@ class FixedExpenseNotifier extends StateNotifier<AsyncValue<List<FixedExpenseMod
       
       for (var fixed in fixedExpenses) {
         if (!fixed.isAutoAdd) continue;
+
+        final now = DateTime.now();
+        // If checking for current month, ensure we passed the day
+        if (currentMonth.year == now.year && currentMonth.month == now.month) {
+          if (now.day < fixed.dayOfMonth) continue;
+        }
+        // If checking for future month, don't add yet
+        if (currentMonth.isAfter(DateTime(now.year, now.month))) {
+           continue;
+        }
         
         // Check by deterministic ID first (Robust)
         bool isAdded = await _repository.isFixedExpenseAddedForMonthById(fixed.id, currentMonth);

@@ -19,7 +19,9 @@ class BudgetCard extends ConsumerWidget {
             final budgetAmount = budget?.amount ?? 0;
             return expensesAsync.when(
               data: (expenses) {
-                final totalExpense = expenses.fold(0.0, (sum, e) => sum + e.amount);
+                final totalExpense = expenses
+                    .where((e) => e.paymentMethod != 'Credit Card' || e.isCreditCardBill)
+                    .fold(0.0, (sum, e) => sum + e.amount);
                 final progress = budgetAmount > 0 ? (totalExpense / budgetAmount).clamp(0.0, 1.0) : 0.0;
                 final remaining = budgetAmount - totalExpense;
                 

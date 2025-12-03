@@ -12,6 +12,8 @@ class ExpenseModel with _$ExpenseModel {
     required DateTime date,
     required String category,
     String? paymentMethod,
+    String? creditCardId,
+    @Default(false) bool isCreditCardBill,
   }) = _ExpenseModel;
 
   factory ExpenseModel.fromJson(Map<String, dynamic> json) =>
