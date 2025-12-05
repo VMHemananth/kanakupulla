@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/biometric_service.dart';
-import '../screens/dashboard_screen.dart';
+
+import '../providers/session_lock_provider.dart';
 
 class LockScreen extends ConsumerStatefulWidget {
   const LockScreen({super.key});
@@ -20,10 +21,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   Future<void> _authenticate() async {
     final authenticated = await ref.read(biometricServiceProvider).authenticate();
     if (authenticated && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const DashboardScreen()),
-      );
+      ref.read(sessionLockProvider.notifier).unlock();
     }
   }
 

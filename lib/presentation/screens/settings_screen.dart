@@ -129,7 +129,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
                 const Divider(),
-                // Export options removed as per request
+                Consumer(
+                  builder: (context, ref, _) {
+                     final budgetAsync = ref.watch(budgetProvider);
+                     return ListTile(
+                       leading: const Icon(Icons.monetization_on),
+                       title: const Text('Monthly Budget'),
+                       subtitle: budgetAsync.when(
+                         data: (budget) => Text(budget?.amount != null ? '₹${budget!.amount.toStringAsFixed(0)}' : 'Not Set'),
+                         loading: () => const Text('Loading...'),
+                         error: (_,__) => const Text('Error loading budget'),
+                       ),
+                       onTap: () {
+                         final currentBudget = budgetAsync.value?.amount;
+                         final controller = TextEditingController(text: currentBudget?.toString() ?? '');
+                         showDialog(
+                           context: context,
+                           builder: (ctx) => AlertDialog(
+                             title: const Text('Set Monthly Budget'),
+                             content: TextField(
+                               controller: controller,
+                               keyboardType: TextInputType.number,
+                               decoration: const InputDecoration(
+                                 labelText: 'Amount',
+                                 prefixText: '₹ ',
+                                 border: OutlineInputBorder(),
+                               ),
+                             ),
+                             actions: [
+                               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                               TextButton(
+                                 onPressed: () {
+                                   final amount = double.tryParse(controller.text);
+                                   if (amount != null && amount > 0) {
+                                     ref.read(budgetProvider.notifier).setBudget(amount);
+                                     Navigator.pop(ctx);
+                                   }
+                                 }, 
+                                 child: const Text('Save')
+                               ),
+                             ],
+                           ),
+                         );
+                       },
+                     );
+                  },
+                ),
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.backup),

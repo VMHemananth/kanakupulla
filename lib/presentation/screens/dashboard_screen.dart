@@ -16,6 +16,7 @@ import 'monthly_compare_screen.dart';
 import 'income_list_screen.dart';
 import 'transaction_review_screen.dart';
 import 'analysis_screen.dart';
+import 'daily_expenses_calendar_screen.dart';
 import 'manage_categories_and_budgets_screen.dart';
 import 'manage_fixed_expenses_screen.dart';
 import 'manage_recurring_income_screen.dart';
@@ -26,7 +27,7 @@ import '../providers/sms_provider.dart';
 import '../../core/utils/csv_exporter.dart';
 import '../providers/fixed_expense_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/credit_card_provider.dart';
+
 import '../../data/repositories/credit_card_repository.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/models/expense_model.dart';
@@ -264,6 +265,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.calendar_month),
+              title: const Text('Calendar View'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const DailyExpensesCalendarScreen()),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.category),
               title: const Text('Manage Categories'),
               onTap: () {
@@ -483,6 +495,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SalaryCard(),
               const SizedBox(height: 16),
               const BudgetCard(),
+              const SizedBox(height: 16),
               const SizedBox(height: 16),
               const ExpenseChart(),
               const SizedBox(height: 16),

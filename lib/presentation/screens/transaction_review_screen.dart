@@ -6,6 +6,8 @@ import '../../data/models/expense_model.dart';
 import '../../data/services/sms_service.dart';
 import '../providers/sms_provider.dart';
 import '../providers/expense_provider.dart';
+import '../providers/category_provider.dart';
+import '../../data/models/category_model.dart';
 
 class TransactionReviewScreen extends ConsumerWidget {
   const TransactionReviewScreen({super.key});
@@ -75,13 +77,32 @@ class TransactionReviewScreen extends ConsumerWidget {
             TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title')),
             TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Amount'), keyboardType: TextInputType.number),
             // Simplified category selection for now
-            DropdownButtonFormField<String>(
-              value: selectedCategory,
-              items: ['Food', 'Transport', 'Shopping', 'Bills', 'Others']
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
-              onChanged: (v) => selectedCategory = v!,
-              decoration: const InputDecoration(labelText: 'Category'),
+            // Dynamic category selection
+            Consumer(
+              builder: (context, ref, _) {
+                final categoriesAsync = ref.watch(categoryProvider);
+                return categoriesAsync.when(
+                  data: (categories) {
+                    // Update selectedCategory if not in list (or default to first available)
+                    if (categories.isNotEmpty && !categories.any((c) => c.name == selectedCategory)) {
+                       // Try to find 'Others' or fallback to first
+                       final hasOthers = categories.any((c) => c.name == 'Others');
+                       selectedCategory = hasOthers ? 'Others' : categories.first.name;
+                    }
+                    
+                    return DropdownButtonFormField<String>(
+                      value: categories.any((c) => c.name == selectedCategory) ? selectedCategory : null,
+                      items: categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
+                      onChanged: (v) {
+                        if (v != null) selectedCategory = v;
+                      },
+                      decoration: const InputDecoration(labelText: 'Category'),
+                    );
+                  },
+                  loading: () => const LinearProgressIndicator(),
+                  error: (e, _) => Text('Error loading categories: $e'),
+                );
+              },
             ),
           ],
         ),
@@ -89,10 +110,13 @@ class TransactionReviewScreen extends ConsumerWidget {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
+              final amount = double.tryParse(amountController.text);
+              if (amount == null) return;
+
               final expense = ExpenseModel(
                 id: const Uuid().v4(),
                 title: titleController.text,
-                amount: double.parse(amountController.text),
+                amount: amount,
                 date: txn.date,
                 category: selectedCategory,
                 paymentMethod: selectedPaymentMethod,

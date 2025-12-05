@@ -46,12 +46,13 @@ class OCRService {
     // --- 2. Extract Amount ---
     double? amount;
     
-    // Regex for currency-like numbers (e.g., 1,234.50, 500.00, 1200)
-    // Allows optional currency symbols and whitespace
-    final priceRegex = RegExp(r'(?:Rs\.?|INR|₹)?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)', caseSensitive: false);
+    // Improved Regex to catch amounts:
+    // Matches: 1,234.50 | 1234.50 | 1234 | 1,234 | 12.00
+    // Optional currency symbols: Rs, INR, ₹, $
+    final priceRegex = RegExp(r'(?:[\u20B9\u20A8\u0024\u00A3\u20AC]|\b(?:Rs|INR|MRP|Net|Total)\b)?\s*[:\-\s]*(\d{1,3}(?:,\d{2,3})*(?:\.\d+)?)', caseSensitive: false);
     
     // Keywords that indicate a total amount
-    final totalKeywords = ['total', 'net', 'payable', 'bill amount', 'amount', 'grand total', 'cash', 'card', 'paid'];
+    final totalKeywords = ['total', 'net', 'payable', 'bill amount', 'grand total', 'cash', 'card', 'paid'];
     
     // Strategy 1: Look for keywords and find number on same or next line
     for (int i = 0; i < lines.length; i++) {
@@ -59,27 +60,21 @@ class OCRService {
       
       if (totalKeywords.any((k) => line.contains(k))) {
         // Check same line
-        var match = priceRegex.firstMatch(lines[i]);
-        if (match != null) {
-          String numStr = match.group(1)!.replaceAll(',', '');
-          double? val = double.tryParse(numStr);
-          if (val != null) {
-            // If we found a "Total" keyword, this is a strong candidate.
-            if (line.contains('tax') && !line.contains('total')) {
-               // Skip tax amount if possible
-            } else {
-               // If we already have an amount, check if this one is larger (likely the grand total)
-               if (amount == null || val > amount) {
-                 amount = val;
-               }
-            }
-          }
+        final matches = priceRegex.allMatches(lines[i]);
+        for (var match in matches) {
+           String numStr = match.group(1)!.replaceAll(',', '');
+           double? val = double.tryParse(numStr);
+           if (val != null) {
+              if (amount == null || val > amount) {
+                amount = val;
+              }
+           }
         }
         
-        // Check next line if no amount found on same line OR to see if it's the value for the label
+        // Check next line if valid, sometimes the amount is below the label
         if (i + 1 < lines.length) {
-           match = priceRegex.firstMatch(lines[i+1]);
-           if (match != null) {
+           final matchesNext = priceRegex.allMatches(lines[i+1]);
+           for (var match in matchesNext) {
              String numStr = match.group(1)!.replaceAll(',', '');
              double? val = double.tryParse(numStr);
              if (val != null) {
@@ -92,7 +87,7 @@ class OCRService {
       }
     }
 
-    // Strategy 2: If no keyword-based amount found, find the largest number that looks like a price
+    // Strategy 2: If no keyword-based amount found, find the largest number that looks like a price anywhere in the text
     if (amount == null) {
       double maxVal = 0.0;
       final allMatches = priceRegex.allMatches(text);
@@ -104,10 +99,10 @@ class OCRService {
         if (val != null) {
           // Filter out unlikely amounts
           // 1. Dates (often parsed as numbers like 2023, 2024)
-          if (val >= 2020 && val <= 2030) continue;
+          if (val >= 2020 && val <= 2030 && !numStr.contains('.')) continue;
           
-          // 2. Phone numbers (large integers)
-          if (val > 10000 && !numStr.contains('.')) continue; // Phone numbers usually don't have decimals
+          // 2. Phone numbers (large integers without decimals often > 100000)
+          if (val > 100000 && !numStr.contains('.')) continue; 
           
           if (val > maxVal) {
             maxVal = val;

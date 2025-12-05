@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
+import '../../core/utils/voice_parser.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
   final ExpenseModel? expense;
@@ -101,41 +102,47 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     }
   }
 
+
   void _parseVoiceInput(String text) {
-    // Simple heuristic: Extract numbers for amount, rest for title
-    // Example: "Lunch 150" -> Title: Lunch, Amount: 150
-    
-    final words = text.split(' ');
-    String? amountStr;
-    final titleWords = <String>[];
+    if (text.isEmpty) return;
 
-    for (var word in words) {
-      // Remove currency symbols if any
-      final cleanWord = word.replaceAll(RegExp(r'[₹$]'), '');
-      if (double.tryParse(cleanWord) != null) {
-        amountStr = cleanWord;
-      } else {
-        titleWords.add(word);
-      }
-    }
+    final categoriesAsync = ref.read(categoryProvider);
+    final categories = categoriesAsync.value?.map((e) => e.name).toList() ?? [];
 
-    if (amountStr != null) {
-      _amountController.text = amountStr;
-    }
-    
-    if (titleWords.isNotEmpty) {
-      // Capitalize first letter
-      String title = titleWords.join(' ');
-      if (title.isNotEmpty) {
-        title = title[0].toUpperCase() + title.substring(1);
+    final cardsAsync = ref.read(creditCardProvider);
+    final cards = cardsAsync.value ?? [];
+
+    final result = VoiceParser.parse(text, categories, cards);
+
+    setState(() {
+      if (result.amount != null) {
+        _amountController.text = result.amount.toString();
       }
-      _titleController.text = title;
-    }
+      if (result.title != null && result.title!.isNotEmpty) {
+        _titleController.text = result.title!;
+      }
+      if (result.category != null) {
+        _selectedCategory = result.category;
+      }
+      if (result.paymentMethod != null) {
+        _paymentMethod = result.paymentMethod!;
+        // Reset card if method changed to something else
+        if (_paymentMethod != 'Credit Card') {
+          _selectedCreditCardId = null;
+        }
+      }
+      if (result.creditCardId != null) {
+        _selectedCreditCardId = result.creditCardId;
+        _paymentMethod = 'Credit Card'; // Ensure method matches found card
+      }
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Parsed: "$text"')),
+      SnackBar(
+        content: Text('Parsed: Title="${result.title}", Cat="${result.category}", Amt="${result.amount}"'),
+        backgroundColor: Colors.teal,
+      ),
     );
-
   }
 
   Future<void> _scanReceipt() async {

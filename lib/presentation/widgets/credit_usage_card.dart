@@ -21,96 +21,64 @@ class CreditUsageCard extends ConsumerWidget {
 
         if (creditUsage == 0) return const SizedBox.shrink();
 
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CreditUsageDetailsScreen(),
-              ),
-            );
-          },
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF3949AB), Color(0xFF1E88E5)], // Indigo to Blue
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
+        return Card(
+          elevation: 2,
+          color: Colors.indigo, // Set background color to support white text
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CreditUsageDetailsScreen(),
                 ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // Background Pattern
-                Positioned(
-                  right: -20,
-                  top: -20,
-                  child: Icon(
-                    Icons.credit_card,
-                    size: 150,
-                    color: Colors.white.withOpacity(0.1),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2), // Semi-transparent white
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.credit_card, color: Colors.white), // White icon
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Credit Usage',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white), // White text
+                        ),
+                        Text(
+                          'To be billed',
+                          style: TextStyle(color: Colors.white70, fontSize: 12), // White-70 text
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.credit_score, color: Colors.white, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Credit Usage',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
                       Text(
                         '₹${creditUsage.toStringAsFixed(0)}',
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
+                          color: Colors.white, // White text
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 1.0,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'To be billed',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white70),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
