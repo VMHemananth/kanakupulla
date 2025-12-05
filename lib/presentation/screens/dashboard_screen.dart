@@ -13,6 +13,7 @@ import '../widgets/credit_usage_card.dart';
 import 'add_expense_screen.dart';
 import 'expense_list_screen.dart';
 import 'monthly_compare_screen.dart';
+import 'yearly_report_screen.dart';
 import 'income_list_screen.dart';
 import 'transaction_review_screen.dart';
 import 'analysis_screen.dart';
@@ -358,6 +359,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _showExportDialog();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_month),
+              title: const Text('Yearly Financial Overview'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const YearlyReportScreen()),
+                );
               },
             ),
             ListTile(
