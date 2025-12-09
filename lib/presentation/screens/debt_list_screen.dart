@@ -7,6 +7,7 @@ import '../../data/models/expense_model.dart';
 import '../providers/debt_provider.dart';
 import '../providers/expense_provider.dart';
 import 'add_debt_screen.dart';
+import 'loan_details_screen.dart';
 
 class DebtListScreen extends ConsumerWidget {
   const DebtListScreen({super.key});
@@ -129,24 +130,38 @@ class DebtTab extends ConsumerWidget {
                                     ),
                                 ],
                               ),
-                              if (!debt.isSettled) ...[
-                                const SizedBox(width: 8),
-                                PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'edit') {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => AddDebtScreen(debt: debt)),
-                                      );
-                                    } else if (value == 'pay') {
-                                      _showPayEmiDialog(context, ref, debt);
-                                    } else if (value == 'settle') {
-                                      _showSettleDialog(context, ref, debt);
-                                    } else if (value == 'delete') {
-                                      _showDeleteDialog(context, ref, debt);
-                                    }
-                                  },
-                                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                              const SizedBox(width: 8),
+                              PopupMenuButton<String>(
+                                onSelected: (value) {
+                                  if (value == 'edit') {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => AddDebtScreen(debt: debt)),
+                                    );
+                                  } else if (value == 'pay') {
+                                    _showPayEmiDialog(context, ref, debt);
+                                  } else if (value == 'settle') {
+                                    _showSettleDialog(context, ref, debt);
+                                  } else if (value == 'delete') {
+                                    _showDeleteDialog(context, ref, debt);
+                                  }
+                                },
+                                itemBuilder: (BuildContext context) {
+                                  if (debt.isSettled) {
+                                    return <PopupMenuEntry<String>>[
+                                      const PopupMenuItem<String>(
+                                        value: 'delete',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.delete, color: Colors.red),
+                                            SizedBox(width: 8),
+                                            Text('Delete'),
+                                          ],
+                                        ),
+                                      ),
+                                    ];
+                                  }
+                                  return <PopupMenuEntry<String>>[
                                     const PopupMenuItem<String>(
                                       value: 'pay',
                                       child: Row(
@@ -187,13 +202,16 @@ class DebtTab extends ConsumerWidget {
                                         ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ],
+                                  ];
+                                },
+                              ),
                             ],
                           ),
                           onTap: () {
-                             // Optional: Show details or just rely on popup menu
+                             Navigator.push(
+                               context,
+                               MaterialPageRoute(builder: (context) => LoanDetailsScreen(debt: debt)),
+                             );
                           },
                         );
                       },

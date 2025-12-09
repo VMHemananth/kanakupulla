@@ -83,4 +83,47 @@ class CategoryBudgetNotifier extends StateNotifier<AsyncValue<List<BudgetModel>>
       // Handle error
     }
   }
+
+  Future<void> copyBudgetsFromPreviousMonth() async {
+    try {
+      state = const AsyncValue.loading();
+      
+      // Calculate previous month
+      var prevYear = _date.year;
+      var prevMonth = _date.month - 1;
+      if (prevMonth == 0) {
+        prevMonth = 12;
+        prevYear--;
+      }
+      
+      final prevMonthId = '${prevYear}_$prevMonth';
+      final currentMonthId = '${_date.year}_${_date.month}';
+
+      // Get budgets from previous month
+      final prevBudgets = await _repository.getCategoryBudgets(prevMonthId);
+      
+      if (prevBudgets.isEmpty) {
+        // Nothing to copy
+        await loadBudgets();
+        return;
+      }
+
+      // Create new budgets for current month
+      for (var prevBudget in prevBudgets) {
+        if (prevBudget.category != null) {
+          final newBudget = BudgetModel(
+            id: '${currentMonthId}_${prevBudget.category}',
+            month: currentMonthId,
+            amount: prevBudget.amount,
+            category: prevBudget.category,
+          );
+          await _repository.setBudget(newBudget);
+        }
+      }
+      
+      await loadBudgets();
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
 }

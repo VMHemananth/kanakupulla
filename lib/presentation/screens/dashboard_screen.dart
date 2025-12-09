@@ -95,16 +95,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Future<void> _checkCreditCardBills() async {
     // Check for bills using repository directly
-    // Actually, provider returns void on load. Let's use repository directly or watch provider.
-    // Better: use ref.read(creditCardRepositoryProvider).getCreditCards();
     final repo = ref.read(creditCardRepositoryProvider);
     final cardsList = await repo.getCreditCards();
     final now = DateTime.now();
     final currentMonthStr = '${now.year}-${now.month}';
 
     for (var card in cardsList) {
-      if (now.day >= card.billingDay && card.lastBillGeneratedMonth != currentMonthStr) {
-        // Generate Bill
+      // Trigger: Day AFTER Billing Day
+      // Why? To ensure the billing day is fully complete and all expenses are recorded.
+      // Also check if we haven't already generated/checked for this month
+      
+      // Calculate previous month's target billing if we are past billing day
+      // Logic: If today is billingDay + 1, we are checking for the cycle ending yesterday.
+      
+      // Simpler check: If today > billingDay and lastBill != thisMonth
+      // But user specifically asked for "On the day after billing day".
+      bool isDayAfterBilling = now.day == (card.billingDay + 1);
+      // Handle edge case where billing day is month end? 
+      // Simplified: Just strictly check day match for now, or >= if user missed opening app yesterday.
+      
+      // Allow checking any day AFTER billing day, until marked as done for this month
+      if (now.day > card.billingDay && card.lastBillGeneratedMonth != currentMonthStr) {
+        // We have a pending bill check for this month.
+        
         // Cycle: From [Month-1, BillingDay] to [Month, BillingDay - 1]
         final cycleEnd = DateTime(now.year, now.month, card.billingDay - 1, 23, 59, 59);
         final cycleStart = DateTime(now.year, now.month - 1, card.billingDay);
@@ -113,35 +126,82 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         final cycleExpenses = allExpenses.where((e) => 
           e.creditCardId == card.id && 
           e.date.isAfter(cycleStart.subtract(const Duration(seconds: 1))) && 
-          e.date.isBefore(cycleEnd.add(const Duration(seconds: 1)))
+          e.date.isBefore(cycleEnd.add(const Duration(seconds: 1))) &&
+          !e.isCreditCardBill // Don't count bills
         ).toList();
 
         final totalAmount = cycleExpenses.fold(0.0, (sum, e) => sum + e.amount);
 
         if (totalAmount > 0) {
-          final billExpense = ExpenseModel(
-            id: 'bill_${card.id}_${now.year}_${now.month}',
-            title: '${card.name} Bill',
-            amount: totalAmount,
-            date: DateTime(now.year, now.month + 1, card.billingDay), // Next month
-            category: 'Bills',
-            paymentMethod: 'Bank Transfer', // Default
-            isCreditCardBill: true,
-          );
+           // Show Dialog
+           if (!mounted) continue;
+           
+           // We shouldn't block the loop with await showDialog immediately multiple times? 
+           // For safety, let's just trigger one dialog at a time, or chained?
+           // Using a delayed check or just showing for the first pending one found is safer for UX.
+           
+           await showDialog(
+             context: context,
+             builder: (ctx) => AlertDialog(
+               title: Text('Generate Bill for ${card.name}?'),
+               content: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                   Text('Billing Cycle Ended: ${DateFormat('MMM d').format(cycleEnd)}'),
+                   const SizedBox(height: 8),
+                   Text('Total Amount: ₹${totalAmount.toStringAsFixed(2)}'),
+                   const SizedBox(height: 16),
+                   const Text('Add this as a bill payment expense for next month?'),
+                 ],
+               ),
+               actions: [
+                 TextButton(
+                   onPressed: () async {
+                     // NO: Just mark as checked so we don't ask again this month
+                     Navigator.pop(ctx);
+                     final updatedCard = card.copyWith(lastBillGeneratedMonth: currentMonthStr);
+                     await repo.updateCreditCard(updatedCard);
+                   },
+                   child: const Text('No, Manual'),
+                 ),
+                 ElevatedButton(
+                   onPressed: () async {
+                     // YES: Generate Bill
+                     Navigator.pop(ctx);
+                     
+                     final billExpense = ExpenseModel(
+                        id: 'bill_${card.id}_${now.year}_${now.month}',
+                        title: '${card.name} Bill',
+                        amount: totalAmount,
+                        date: DateTime(now.year, now.month + 1, card.billingDay), // Due date approx next month
+                        category: 'Bills',
+                        paymentMethod: 'Bank Transfer',
+                        isCreditCardBill: true,
+                        creditCardId: card.id,
+                      );
 
-          await ref.read(expensesProvider.notifier).addExpense(billExpense);
-          
-          // Update card
-          final updatedCard = card.copyWith(lastBillGeneratedMonth: currentMonthStr);
-          await repo.updateCreditCard(updatedCard);
+                      await ref.read(expensesProvider.notifier).addExpense(billExpense);
+                      
+                      final updatedCard = card.copyWith(lastBillGeneratedMonth: currentMonthStr);
+                      await repo.updateCreditCard(updatedCard);
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Generated ${card.name} bill: ₹$totalAmount')),
-            );
-          }
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Bill generated for ₹${totalAmount.toStringAsFixed(0)}')),
+                        );
+                      }
+                   },
+                   child: const Text('Yes, Add Bill'),
+                 ),
+               ],
+             ),
+           );
+           
+           // Break after showing one dialog to avoid stacking. Will check others next time app opens/home refreshes.
+           break; 
         } else {
-          // No expenses, but mark as checked to avoid re-checking
+           // No expenses, mark checked
            final updatedCard = card.copyWith(lastBillGeneratedMonth: currentMonthStr);
            await repo.updateCreditCard(updatedCard);
         }
@@ -619,6 +679,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () {
               final amount = double.tryParse(controller.text);
               if (amount != null) {
+                // Validation: Check against Income
+                final incomeList = ref.read(salaryProvider).value ?? [];
+                final totalIncome = incomeList.fold(0.0, (sum, e) => sum + e.amount);
+
+                if (totalIncome == 0) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please add income before setting a budget.')),
+                  );
+                  return;
+                }
+
+                if (amount > totalIncome) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Budget (₹${amount.toStringAsFixed(0)}) cannot exceed Total Income (₹${totalIncome.toStringAsFixed(0)})')),
+                  );
+                  return;
+                }
+
                 ref.read(budgetProvider.notifier).setBudget(amount);
                 Navigator.pop(ctx);
               }

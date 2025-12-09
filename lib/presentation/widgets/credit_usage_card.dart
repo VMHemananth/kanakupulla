@@ -9,7 +9,7 @@ class CreditUsageCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final expensesAsync = ref.watch(expensesProvider);
+    final expensesAsync = ref.watch(allExpensesProvider);
 
     return expensesAsync.when(
       data: (expenses) {

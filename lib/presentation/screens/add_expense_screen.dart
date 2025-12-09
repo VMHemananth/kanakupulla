@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/models/savings_goal_model.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/credit_card_provider.dart';
+import '../providers/savings_provider.dart';
 import '../../data/services/ocr_service.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -15,8 +17,9 @@ import '../../core/utils/voice_parser.dart';
 class AddExpenseScreen extends ConsumerStatefulWidget {
   final ExpenseModel? expense;
   final DateTime? initialDate;
+  final String? initialSavingsGoalId;
 
-  const AddExpenseScreen({super.key, this.expense, this.initialDate});
+  const AddExpenseScreen({super.key, this.expense, this.initialDate, this.initialSavingsGoalId});
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -30,6 +33,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   String? _selectedCategory;
   String _paymentMethod = 'Salary';
   String? _selectedCreditCardId;
+  String? _selectedSavingsGoalId;
   
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _isListening = false;
@@ -39,15 +43,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     super.initState();
     _titleController = TextEditingController(text: widget.expense?.title ?? '');
     _amountController = TextEditingController(text: widget.expense?.amount.toString() ?? '');
-    // If initialDate is provided, use it.
-    // However, if initialDate is just the 1st of the current month (default behavior of dashboard),
-    // we prefer showing today's date for better UX.
+    
     if (widget.expense != null) {
       _selectedDate = widget.expense!.date;
     } else if (widget.initialDate != null) {
       final now = DateTime.now();
-      // If initialDate is just the 1st of the current month (default behavior of dashboard),
-      // we prefer showing today's date for better UX.
       if (widget.initialDate!.year == now.year && 
           widget.initialDate!.month == now.month && 
           widget.initialDate!.day == 1) {
@@ -62,6 +62,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     _selectedCategory = widget.expense?.category;
     _paymentMethod = widget.expense?.paymentMethod ?? 'Salary';
     _selectedCreditCardId = widget.expense?.creditCardId;
+
+    if (widget.initialSavingsGoalId != null) {
+      _selectedCategory = 'Savings';
+      _selectedSavingsGoalId = widget.initialSavingsGoalId;
+    }
   }
 
   @override
@@ -229,6 +234,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     final categoriesAsync = ref.watch(categoryProvider);
     final categories = categoriesAsync.value?.map((e) => e.name).toList() ?? [];
 
+    // Ensure state category is valid or reset
+    if (_selectedCategory != null && !categories.contains(_selectedCategory) && _selectedCategory != 'Savings') {
+       // If category was deleted or invalid, and it's not our special 'Savings' case if handled manually (though usually 'Savings' should be in list)
+       // Checks if 'Savings' is in categories list. If not, it might be an issue if we force it.
+       // Assuming 'Savings' is a valid category that exists.
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.expense == null ? 'Add Expense' : 'Edit Expense'),
@@ -287,12 +299,41 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                value: categories.contains(_selectedCategory) ? _selectedCategory : null,
                 decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                 items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                onChanged: (val) => setState(() => _selectedCategory = val),
+                onChanged: (val) => setState(() {
+                  _selectedCategory = val;
+                  if (_selectedCategory != 'Savings') {
+                    _selectedSavingsGoalId = null;
+                  }
+                }),
                 validator: (value) => value == null ? 'Please select a category' : null,
               ),
+              if (_selectedCategory == 'Savings') ... [
+                 const SizedBox(height: 16),
+                 Consumer(
+                   builder: (context, ref, _) {
+                     final goalsAsync = ref.watch(savingsProvider);
+                     return goalsAsync.when(
+                       data: (goals) {
+                         if (goals.isEmpty) {
+                           return const Text('No savings goals found. Create one first.', style: TextStyle(color: Colors.orange));
+                         }
+                         return DropdownButtonFormField<String>(
+                           value: _selectedSavingsGoalId, // Goals might change, ensure ID is valid
+                           decoration: const InputDecoration(labelText: 'Select Goal to Contribute', border: OutlineInputBorder()),
+                           items: goals.map((g) => DropdownMenuItem(value: g.id, child: Text(g.name))).toList(),
+                           onChanged: (val) => setState(() => _selectedSavingsGoalId = val),
+                           validator: (value) => value == null ? 'Please select a goal' : null,
+                         );
+                       },
+                       loading: () => const LinearProgressIndicator(),
+                       error: (e, _) => Text('Error loading goals: $e'),
+                     );
+                   }
+                 )
+              ],
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _paymentMethod,
@@ -377,24 +418,47 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     );
   }
 
-  void _saveExpense() {
+  void _saveExpense() async {
     if (_formKey.currentState!.validate()) {
+      final amountVal = double.parse(_amountController.text);
+      
       final expense = ExpenseModel(
         id: widget.expense?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         title: _titleController.text,
-        amount: double.parse(_amountController.text),
+        amount: amountVal,
         date: _selectedDate,
         category: _selectedCategory!,
         paymentMethod: _paymentMethod,
         creditCardId: _selectedCreditCardId,
       );
 
+      // Save Expense
       if (widget.expense == null) {
-        ref.read(expensesProvider.notifier).addExpense(expense);
+        await ref.read(expensesProvider.notifier).addExpense(expense);
       } else {
-        ref.read(expensesProvider.notifier).updateExpense(expense);
+        await ref.read(expensesProvider.notifier).updateExpense(expense);
       }
-      Navigator.pop(context);
+
+      // Update Savings Goal if applicable
+      if (_selectedCategory == 'Savings' && _selectedSavingsGoalId != null) {
+        final goals = ref.read(savingsProvider).value ?? [];
+        try {
+          final goal = goals.firstWhere((g) => g.id == _selectedSavingsGoalId);
+          final updatedGoal = goal.copyWith(currentAmount: goal.currentAmount + amountVal);
+          await ref.read(savingsProvider.notifier).updateGoal(updatedGoal);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(content: Text('Added ₹$amountVal to ${goal.name}')),
+            );
+          }
+        } catch (e) {
+          // Goal might not be found
+          print('Error updating goal: $e');
+        }
+      }
+
+      if (mounted) Navigator.pop(context);
     }
   }
 

@@ -15,7 +15,7 @@ class DatabaseService {
     
     _db = await openDatabase(
       fullPath,
-      version: 11,
+      version: 13,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE expenses (
@@ -273,6 +273,25 @@ class DatabaseService {
               amount REAL
             )
           ''');
+        }
+        if (oldVersion < 12) {
+          try {
+            await db.execute("ALTER TABLE debts ADD COLUMN roi REAL DEFAULT 0");
+            await db.execute("ALTER TABLE debts ADD COLUMN interestType TEXT DEFAULT 'Fixed'");
+            await db.execute("ALTER TABLE debts ADD COLUMN tenureMonths INTEGER DEFAULT 0");
+            await db.execute("ALTER TABLE debts ADD COLUMN principalAmount REAL DEFAULT 0");
+            await db.execute("ALTER TABLE debts ADD COLUMN payments TEXT DEFAULT '[]'");
+          } catch (e) {
+            // Ignore if columns exist
+          }
+        }
+        if (oldVersion < 13) {
+          try {
+            // Ensure 'Savings' category exists
+            await db.insert('categories', {'name': 'Savings', 'type': 'Savings'}, conflictAlgorithm: ConflictAlgorithm.ignore);
+          } catch (e) {
+            // Ignore
+          }
         }
       },
     );

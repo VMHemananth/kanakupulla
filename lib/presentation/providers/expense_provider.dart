@@ -26,7 +26,9 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
       final allExpenses = await _repository.getExpenses();
       // Filter by selected month/year
       final filtered = allExpenses.where((e) => 
-        e.date.year == _date.year && e.date.month == _date.month
+        e.date.year == _date.year && 
+        e.date.month == _date.month &&
+        !((e.paymentMethod == 'Credit Card') && !e.isCreditCardBill)
       ).toList();
       state = AsyncValue.data(filtered);
     } catch (e, st) {

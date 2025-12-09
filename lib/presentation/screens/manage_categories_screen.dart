@@ -34,6 +34,8 @@ class CategoryListWidget extends ConsumerWidget {
           itemCount: categories.length,
           itemBuilder: (context, index) {
             final category = categories[index];
+            final isSavings = category.name.toLowerCase() == 'savings';
+            
             return ListTile(
               leading: CircleAvatar(
                 backgroundColor: _getColorForType(category.type),
@@ -48,12 +50,19 @@ class CategoryListWidget extends ConsumerWidget {
                     icon: const Icon(Icons.edit, color: Colors.blue),
                     onPressed: () => showAddCategoryDialog(context, ref, category: category),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
-                      ref.read(categoryProvider.notifier).deleteCategory(category.name);
-                    },
-                  ),
+                  if (!isSavings)
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        try {
+                          await ref.read(categoryProvider.notifier).deleteCategory(category.name);
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                          }
+                        }
+                      },
+                    ),
                 ],
               ),
             );
@@ -107,19 +116,28 @@ void showAddCategoryDialog(BuildContext context, WidgetRef ref, {CategoryModel? 
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (nameController.text.isNotEmpty) {
                 final newCategory = CategoryModel(
                   name: nameController.text,
                   type: selectedType,
                 );
                 
-                if (category == null) {
-                  ref.read(categoryProvider.notifier).addCategory(newCategory);
-                } else {
-                  ref.read(categoryProvider.notifier).updateCategory(category.name, newCategory);
+                try {
+                  if (category == null) {
+                    await ref.read(categoryProvider.notifier).addCategory(newCategory);
+                  } else {
+                    await ref.read(categoryProvider.notifier).updateCategory(category.name, newCategory);
+                  }
+                  if (context.mounted) Navigator.pop(ctx);
+                } catch (e) {
+                  // Show error snackbar
+                   if (context.mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                     );
+                   }
                 }
-                Navigator.pop(ctx);
               }
             },
             child: Text(category == null ? 'Add' : 'Update'),

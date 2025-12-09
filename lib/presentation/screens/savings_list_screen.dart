@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../data/models/savings_goal_model.dart';
 import '../providers/savings_provider.dart';
 import 'add_goal_screen.dart';
+import 'add_expense_screen.dart';
 
 class SavingsListScreen extends ConsumerWidget {
   const SavingsListScreen({super.key});
@@ -72,7 +73,7 @@ class SavingsListScreen extends ConsumerWidget {
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle, color: Colors.green),
-                            onPressed: () => _showAddMoneyDialog(context, ref, goal),
+                            onPressed: () => _navigateToAddExpenseForGoal(context, goal),
                           ),
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blue),
@@ -130,32 +131,11 @@ class SavingsListScreen extends ConsumerWidget {
     );
   }
 
-  void _showAddMoneyDialog(BuildContext context, WidgetRef ref, SavingsGoalModel goal) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Add to ${goal.name}'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹'),
-          keyboardType: TextInputType.number,
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              final amount = double.tryParse(controller.text);
-              if (amount != null && amount > 0) {
-                final updatedGoal = goal.copyWith(currentAmount: goal.currentAmount + amount);
-                ref.read(savingsProvider.notifier).updateGoal(updatedGoal);
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
+  void _navigateToAddExpenseForGoal(BuildContext context, SavingsGoalModel goal) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddExpenseScreen(initialSavingsGoalId: goal.id),
       ),
     );
   }
