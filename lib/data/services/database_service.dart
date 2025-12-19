@@ -15,7 +15,7 @@ class DatabaseService {
     
     _db = await openDatabase(
       fullPath,
-      version: 13,
+      version: 15,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE expenses (
@@ -126,7 +126,8 @@ class DatabaseService {
             title TEXT,
             amount REAL,
             paid_by_member_id TEXT,
-            date TEXT
+            date TEXT,
+            is_paid_from_pool INTEGER DEFAULT 0
           )
         ''');
         await db.execute('''
@@ -135,6 +136,15 @@ class DatabaseService {
             expense_id TEXT,
             member_id TEXT,
             amount REAL
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE group_contributions (
+            id TEXT PRIMARY KEY,
+            group_id TEXT,
+            member_id TEXT,
+            amount REAL,
+            date TEXT
           )
         ''');
         
@@ -287,11 +297,43 @@ class DatabaseService {
         }
         if (oldVersion < 13) {
           try {
-            // Ensure 'Savings' category exists
             await db.insert('categories', {'name': 'Savings', 'type': 'Savings'}, conflictAlgorithm: ConflictAlgorithm.ignore);
           } catch (e) {
             // Ignore
           }
+        }
+        if (oldVersion < 14) {
+          // Add contributions table and update split expenses
+          await db.execute('''
+            CREATE TABLE group_contributions (
+              id TEXT PRIMARY KEY,
+              group_id TEXT,
+              member_id TEXT,
+              amount REAL,
+              date TEXT
+            )
+          ''');
+          try {
+            await db.execute("ALTER TABLE split_expenses ADD COLUMN is_paid_from_pool INTEGER DEFAULT 0");
+          } catch (e) {
+            // Ignore
+          }
+        }
+        if (oldVersion < 15) {
+          try {
+            await db.execute("ALTER TABLE split_expenses ADD COLUMN type TEXT DEFAULT 'EXPENSE'");
+          } catch (e) {
+            // Ignore
+          }
+          await db.execute('''
+            CREATE TABLE group_activities (
+              id TEXT PRIMARY KEY,
+              group_id TEXT,
+              description TEXT,
+              timestamp TEXT,
+              user_name TEXT
+            )
+          ''');
         }
       },
     );

@@ -2,47 +2,123 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import '../../providers/split_provider.dart';
 import '../../../data/models/split_models.dart';
+import '../../../data/models/contribution_model.dart';
+import 'add_contribution_dialog.dart';
+import '../../../data/services/pdf_service.dart';
+import '../../../data/services/pdf_service.dart';
 
-class GroupDetailsScreen extends ConsumerWidget {
+class GroupDetailsScreen extends ConsumerStatefulWidget {
   final String groupId;
   final String groupName;
 
   const GroupDetailsScreen({super.key, required this.groupId, required this.groupName});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GroupDetailsScreen> createState() => _GroupDetailsScreenState();
+}
+
+class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
+  bool _isSearching = false;
+  final _searchController = TextEditingController();
+  
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groupId = widget.groupId;
+    final groupName = widget.groupName;
+
     final detailsAsync = ref.watch(groupDetailsProvider(groupId));
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(groupName),
+        title: _isSearching
+          ? TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Search expenses...',
+                border: InputBorder.none,
+                hintStyle: TextStyle(color: Colors.white70),
+              ),
+              style: const TextStyle(color: Colors.white),
+              onChanged: (val) => setState(() {}),
+            )
+          : Text(groupName),
+        leading: _isSearching
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                setState(() {
+                  _isSearching = false;
+                  _searchController.clear();
+                });
+              },
+            )
+          : null,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add),
-            tooltip: 'Add Members',
-            onPressed: () => _showAddMemberDialog(context, ref),
-          ),
+          if (!_isSearching) ...[
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: 'Search',
+              onPressed: () => setState(() => _isSearching = true),
+            ),
+            IconButton(
+              icon: const Icon(Icons.person_add),
+              tooltip: 'Add Members',
+              onPressed: () => _showAddMemberDialog(context, ref),
+            ),
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf),
+              tooltip: 'Export Report',
+              onPressed: () {
+                 detailsAsync.whenData((state) async {
+                   try {
+                     await PdfService().generateGroupReport(
+                       groupName: groupName,
+                       members: state.members,
+                       expenses: state.expenses,
+                       balances: state.balances,
+                     );
+                   } catch (e) {
+                      debugPrint('PDF Export Error: $e');
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to generate PDF: $e')));
+                      }
+                   }
+                 });
+              },
+            ),
+          ],
         ],
       ),
       body: detailsAsync.when(
         data: (state) {
           return DefaultTabController(
-            length: 2,
+            length: 3,
             child: Column(
               children: [
                 const TabBar(
                   tabs: [
                     Tab(text: 'Expenses'),
                     Tab(text: 'Balances'),
+                    Tab(text: 'Activity'),
                   ],
                 ),
+                _buildPoolSummary(context, ref, state),
                 Expanded(
                   child: TabBarView(
                     children: [
                       _buildExpensesTab(context, ref, state),
-                      _buildBalancesTab(state),
+                      _buildBalancesTab(context, ref, state),
+                      _buildActivityTab(state),
                     ],
                   ),
                 ),
@@ -60,8 +136,96 @@ class GroupDetailsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildPoolSummary(BuildContext context, WidgetRef ref, GroupDetailsState state) {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      color: state.poolBalance < 1000 ? Colors.red.shade50 : Colors.blue.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Pool Balance', style: TextStyle(fontSize: 14)),
+                    Text(
+                      '₹${state.poolBalance.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: state.poolBalance < 1000 
+                            ? Colors.red 
+                            : Theme.of(context).colorScheme.primary, // Dynamic theme color
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                   children: [
+                     IconButton(
+                       icon: const Icon(Icons.history),
+                       tooltip: 'History',
+                       onPressed: () => _showContributionsDialog(context, ref, state),
+                     ),
+                     const SizedBox(width: 8),
+                     ElevatedButton.icon(
+                  onPressed: () {
+                    if (state.members.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add members first')));
+                      return;
+                    }
+                    showDialog(
+                      context: context,
+                      builder: (context) => AddContributionDialog(
+                        groupId: widget.groupId,
+                        members: state.members,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Funds'),
+                ),
+              ],
+            ),
+              ],
+            ),
+            if (state.poolBalance < 1000)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning, color: Colors.amber, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Low balance! Please top up.',
+                      style: TextStyle(color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildExpensesTab(BuildContext context, WidgetRef ref, GroupDetailsState state) {
-    if (state.expenses.isEmpty) {
+    final expenses = _isSearching && _searchController.text.isNotEmpty
+        ? state.expenses.where((e) {
+            final query = _searchController.text.toLowerCase();
+            return e.title.toLowerCase().contains(query) || 
+                   e.amount.toString().contains(query);
+          }).toList()
+        : state.expenses;
+
+    if (expenses.isEmpty) {
+      if (_isSearching) {
+        return const Center(child: Text('No matching expenses found', style: TextStyle(color: Colors.grey)));
+      }
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -82,21 +246,43 @@ class GroupDetailsScreen extends ConsumerWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: state.expenses.length,
+      itemCount: expenses.length,
       itemBuilder: (context, index) {
-        final expense = state.expenses[index];
+        final expense = expenses[index];
         final payerName = state.members.firstWhere(
           (m) => m.id == expense.paidByMemberId,
           orElse: () => GroupMember(id: '', groupId: '', name: 'Unknown'),
         ).name;
 
+        final isSettlement = expense.type == 'SETTLEMENT';
         return Card(
+          color: isSettlement ? Colors.green.shade50 : null,
           child: ListTile(
-            title: Text(expense.title),
-            subtitle: Text('Paid by $payerName • ${DateFormat('MMM d').format(expense.date)}'),
-            trailing: Text(
-              '₹${expense.amount.toStringAsFixed(0)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            leading: isSettlement ? const Icon(Icons.check_circle, color: Colors.green) : null,
+            title: Text(expense.title, style: TextStyle(fontWeight: isSettlement ? FontWeight.bold : FontWeight.normal)),
+            subtitle: Text('${isSettlement ? 'Payment by' : 'Paid by'} $payerName • ${DateFormat('MMM d').format(expense.date)}'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '₹${expense.amount.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 16,
+                    color: isSettlement ? Colors.green : null
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (val) {
+                    if (val == 'delete') {
+                       ref.read(groupDetailsProvider(widget.groupId).notifier).deleteExpense(expense.id);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+              ],
             ),
           ),
         );
@@ -104,30 +290,103 @@ class GroupDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBalancesTab(GroupDetailsState state) {
+  Widget _buildBalancesTab(BuildContext context, WidgetRef ref, GroupDetailsState state) {
     if (state.members.isEmpty) return const Center(child: Text('No members'));
 
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.all(16),
-      itemCount: state.members.length,
-      itemBuilder: (context, index) {
-        final member = state.members[index];
-        final balance = state.balances[member.id] ?? 0.0;
-        final isPositive = balance >= 0;
-
-        return Card(
-          child: ListTile(
-            title: Text(member.name),
-            trailing: Text(
-              isPositive ? 'Gets back ₹${balance.toStringAsFixed(0)}' : 'Owes ₹${balance.abs().toStringAsFixed(0)}',
-              style: TextStyle(
-                color: isPositive ? Colors.green : Colors.red,
-                fontWeight: FontWeight.bold,
+      children: [
+        const Text('Pool Shares', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        ...state.members.map((member) {
+          final poolBal = state.memberPoolBalances[member.id] ?? 0.0;
+          return Card(
+            child: ListTile(
+              title: Text(member.name),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   Text(
+                    '₹${poolBal.toStringAsFixed(0)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (val) {
+                      if (val == 'edit') {
+                        _showEditMemberDialog(context, ref, member);
+                      } else if (val == 'delete') {
+                        _confirmDeleteMember(context, ref, member);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-        );
-      },
+          );
+        }),
+        const SizedBox(height: 24),
+        const Text('Direct Settlements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        ...state.members.map((member) {
+          final balance = state.balances[member.id] ?? 0.0;
+          if (balance.abs() < 1) return const SizedBox.shrink(); // Hide tiny balances
+          
+          final isPositive = balance >= 0;
+          return Card(
+            child: ListTile(
+              title: Text(member.name),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   Text(
+                    isPositive ? 'Gets back ₹${balance.toStringAsFixed(0)}' : 'Owes ₹${balance.abs().toStringAsFixed(0)}',
+                    style: TextStyle(
+                      color: isPositive ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (!isPositive)
+                    TextButton(
+                      onPressed: () => _showSettleUpDialog(context, ref, member, state),
+                      child: const Text('Settle Up'),
+                    ),
+                  PopupMenuButton<String>(
+                    onSelected: (val) {
+                      if (val == 'delete') {
+                        // Confirm deletion
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete Member?'),
+                            content: const Text('This will delete all their data and contributions. Expenses paid by them will effectively be deleted too.'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  ref.read(groupDetailsProvider(widget.groupId).notifier).deleteMember(member.id);
+                                }, 
+                                child: const Text('Delete', style: TextStyle(color: Colors.red))
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'delete', child: Text('Delete Member')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 
@@ -149,13 +408,31 @@ class GroupDetailsScreen extends ConsumerWidget {
                 decoration: InputDecoration(
                   labelText: 'Name',
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () {
-                      if (controller.text.isNotEmpty) {
-                        setState(() {
-                          members.add(controller.text);
-                          controller.clear();
-                        });
+                    icon: const Icon(Icons.contacts),
+                    onPressed: () async {
+                      try {
+                        if (await FlutterContacts.requestPermission(readonly: true)) {
+                          final contact = await FlutterContacts.openExternalPick();
+                          if (contact != null) {
+                            setState(() {
+                               members.add(contact.displayName);
+                            });
+                          }
+                        } else {
+                          // Handle permission denied
+                          if (context.mounted) { // check mounted inside async
+                             ScaffoldMessenger.of(context).showSnackBar(
+                               const SnackBar(content: Text('Contact permission denied')),
+                             );
+                          }
+                        }
+                      } catch (e) {
+                        debugPrint('Error picking contact: $e');
+                        if (context.mounted) {
+                           ScaffoldMessenger.of(context).showSnackBar(
+                             SnackBar(content: Text('Error picking contact: $e')),
+                           );
+                        }
                       }
                     },
                   ),
@@ -193,7 +470,7 @@ class GroupDetailsScreen extends ConsumerWidget {
                 }
                 if (members.isNotEmpty) {
                   for (var name in members) {
-                    ref.read(groupDetailsProvider(groupId).notifier).addMember(name);
+                    ref.read(groupDetailsProvider(widget.groupId).notifier).addMember(name);
                   }
                   Navigator.pop(ctx);
                 }
@@ -207,7 +484,7 @@ class GroupDetailsScreen extends ConsumerWidget {
   }
 
   void _showAddExpenseDialog(BuildContext context, WidgetRef ref) {
-    final state = ref.read(groupDetailsProvider(groupId)).value;
+    final state = ref.read(groupDetailsProvider(widget.groupId)).value;
     if (state == null || state.members.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please add members first')),
@@ -222,6 +499,7 @@ class GroupDetailsScreen extends ConsumerWidget {
     final amountController = TextEditingController();
     String? paidBy = state.members.first.id;
     List<String> splitWith = state.members.map((m) => m.id).toList();
+    bool isPaidFromPool = false;
 
     showDialog(
       context: context,
@@ -244,12 +522,24 @@ class GroupDetailsScreen extends ConsumerWidget {
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: paidBy,
-                  decoration: const InputDecoration(labelText: 'Paid By'),
-                  items: state.members.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))).toList(),
-                  onChanged: (val) => setState(() => paidBy = val),
+                
+                CheckboxListTile(
+                  title: const Text('Pay from Group Pool'),
+                  value: isPaidFromPool,
+                  onChanged: (val) => setState(() => isPaidFromPool = val ?? false),
+                  contentPadding: EdgeInsets.zero,
                 ),
+
+                if (!isPaidFromPool) ...[
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: paidBy,
+                    decoration: const InputDecoration(labelText: 'Paid By'),
+                    items: state.members.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))).toList(),
+                    onChanged: (val) => setState(() => paidBy = val),
+                  ),
+                ],
+
                 const SizedBox(height: 16),
                 const Text('Split With:', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
@@ -280,17 +570,18 @@ class GroupDetailsScreen extends ConsumerWidget {
             ElevatedButton(
               onPressed: () {
                 final amount = double.tryParse(amountController.text);
-                if (titleController.text.isNotEmpty && amount != null && paidBy != null && splitWith.isNotEmpty) {
+                if (titleController.text.isNotEmpty && amount != null && splitWith.isNotEmpty) {
                   final expense = SplitExpense(
                     id: const Uuid().v4(),
-                    groupId: groupId,
+                    groupId: widget.groupId,
                     title: titleController.text,
                     amount: amount,
-                    paidByMemberId: paidBy!,
+                    paidByMemberId: paidBy ?? state.members.first.id, // Fallback if hidden
                     date: DateTime.now(),
                     splitWith: splitWith,
+                    isPaidFromPool: isPaidFromPool,
                   );
-                  ref.read(groupDetailsProvider(groupId).notifier).addExpense(expense);
+                  ref.read(groupDetailsProvider(widget.groupId).notifier).addExpense(expense);
                   Navigator.pop(ctx);
                 } else if (splitWith.isEmpty) {
                    ScaffoldMessenger.of(context).showSnackBar(
@@ -302,6 +593,188 @@ class GroupDetailsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+
+  void _showContributionsDialog(BuildContext context, WidgetRef ref, GroupDetailsState state) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pool History'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: state.contributions.isEmpty
+              ? const Center(child: Text('No contributions yet'))
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: state.contributions.length,
+                  itemBuilder: (context, index) {
+                    final contribution = state.contributions[index];
+                    final memberName = state.members.firstWhere(
+                      (m) => m.id == contribution.memberId,
+                      orElse: () => GroupMember(id: '', groupId: '', name: 'Unknown'),
+                    ).name;
+
+                    return ListTile(
+                      title: Text('+$memberName'),
+                      subtitle: Text(DateFormat('MMM d, y').format(contribution.date)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '₹${contribution.amount.toStringAsFixed(0)}',
+                            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.grey, size: 20),
+                            onPressed: () {
+                              ref.read(groupDetailsProvider(widget.groupId).notifier).deleteContribution(contribution.id);
+                              Navigator.pop(context); // Close/refresh or stick? Provider refresh will happen, but dialog might need rebuild.
+                              // Actually, simple way is to close. User can reopen. 
+                              // Better: Use StatefulBuilder inside dialog for instant remove from UI list?
+                              // For MVP, closing is fine or we rely on riverpod to not rebuild dialog content unless specific setup.
+                              // With current setup, List won't auto-update inside the already built dialog unless we watch inside it.
+                              // Let's just close for simplicity of implementation.
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityTab(GroupDetailsState state) {
+    if (state.activities.isEmpty) {
+      return const Center(child: Text('No activity yet'));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: state.activities.length,
+      itemBuilder: (context, index) {
+        final activity = state.activities[index];
+        return ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: Text(activity.description, style: const TextStyle(fontSize: 14)),
+          subtitle: Text('${activity.userName} • ${DateFormat('MMM d, h:mm a').format(activity.timestamp)}', style: const TextStyle(fontSize: 12)),
+          leading: const Icon(Icons.history, size: 20, color: Colors.grey),
+        );
+      },
+    );
+  }
+  void _showSettleUpDialog(BuildContext context, WidgetRef ref, GroupMember payer, GroupDetailsState state) {
+    // Filter members who are owed money (balance > 0)
+    final receivers = state.members.where((m) => (state.balances[m.id] ?? 0) > 0).toList();
+    if (receivers.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No one is owed money to settle with.')));
+        return;
+    }
+
+    String? receiverId = receivers.first.id;
+    final amountController = TextEditingController(text: state.balances[payer.id]?.abs().toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Record Settlement'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+               Text('${payer.name} pays', style: const TextStyle(fontWeight: FontWeight.bold)),
+               const SizedBox(height: 16),
+               DropdownButtonFormField<String>(
+                 value: receiverId,
+                 decoration: const InputDecoration(labelText: 'Paid To'),
+                 items: receivers.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))).toList(),
+                 onChanged: (val) => setState(() => receiverId = val),
+               ),
+               TextField(
+                 controller: amountController,
+                 decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹'),
+                 keyboardType: TextInputType.number,
+               ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                final amount = double.tryParse(amountController.text);
+                if (amount != null && receiverId != null) {
+                   final expense = SplitExpense(
+                     id: const Uuid().v4(),
+                     groupId: widget.groupId,
+                     title: 'Settlement',
+                     amount: amount,
+                     paidByMemberId: payer.id,
+                     date: DateTime.now(),
+                     splitWith: [receiverId!],
+                     type: 'SETTLEMENT',
+                     isPaidFromPool: false,
+                   );
+                   ref.read(groupDetailsProvider(widget.groupId).notifier).addExpense(expense);
+                   Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Record'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  void _showEditMemberDialog(BuildContext context, WidgetRef ref, GroupMember member) {
+    final controller = TextEditingController(text: member.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Member'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+             onPressed: () {
+               if (controller.text.isNotEmpty) {
+                 ref.read(groupDetailsProvider(widget.groupId).notifier).updateMember(member.copyWith(name: controller.text));
+                 Navigator.pop(ctx);
+               }
+             },
+             child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteMember(BuildContext context, WidgetRef ref, GroupMember member) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Member?'),
+        content: const Text('This will delete all their data and contributions. Expenses paid by them will effectively be deleted too.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(groupDetailsProvider(widget.groupId).notifier).deleteMember(member.id);
+            }, 
+            child: const Text('Delete', style: TextStyle(color: Colors.red))
+          ),
+        ],
       ),
     );
   }

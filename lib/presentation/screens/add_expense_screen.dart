@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/expense_model.dart';
@@ -15,11 +16,20 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/utils/voice_parser.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
-  final ExpenseModel? expense;
+  final ExpenseModel? expense; // Keep for editing existing expenses
   final DateTime? initialDate;
+  final double? initialAmount;
+  final String? initialTitle;
   final String? initialSavingsGoalId;
 
-  const AddExpenseScreen({super.key, this.expense, this.initialDate, this.initialSavingsGoalId});
+  const AddExpenseScreen({
+    super.key, 
+    this.expense, 
+    this.initialDate, 
+    this.initialAmount, 
+    this.initialTitle,
+    this.initialSavingsGoalId,
+  });
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -29,43 +39,36 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _amountController;
-  late DateTime _selectedDate;
+  DateTime _selectedDate = DateTime.now();
   String? _selectedCategory;
-  String _paymentMethod = 'Salary';
+  String? _paymentMethod = 'Cash'; // Default
   String? _selectedCreditCardId;
   String? _selectedSavingsGoalId;
   
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  late stt.SpeechToText _speech;
   bool _isListening = false;
+  File? _receiptImage;
+  bool _isProcessingImage = false;
+  final OCRService _ocrService = OCRService();
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.expense?.title ?? '');
-    _amountController = TextEditingController(text: widget.expense?.amount.toString() ?? '');
+    _titleController = TextEditingController(text: widget.expense?.title ?? widget.initialTitle ?? '');
+    _amountController = TextEditingController(text: widget.expense?.amount.toString() ?? widget.initialAmount?.toStringAsFixed(0) ?? '');
+    _speech = stt.SpeechToText();
     
     if (widget.expense != null) {
       _selectedDate = widget.expense!.date;
-    } else if (widget.initialDate != null) {
-      final now = DateTime.now();
-      if (widget.initialDate!.year == now.year && 
-          widget.initialDate!.month == now.month && 
-          widget.initialDate!.day == 1) {
-        _selectedDate = now;
-      } else {
-        _selectedDate = widget.initialDate!;
-      }
+      _selectedCategory = widget.expense!.category;
+      _paymentMethod = widget.expense!.paymentMethod ?? 'Cash';
+      _selectedCreditCardId = widget.expense!.creditCardId;
     } else {
-      _selectedDate = DateTime.now();
-    }
-    
-    _selectedCategory = widget.expense?.category;
-    _paymentMethod = widget.expense?.paymentMethod ?? 'Salary';
-    _selectedCreditCardId = widget.expense?.creditCardId;
-
-    if (widget.initialSavingsGoalId != null) {
-      _selectedCategory = 'Savings';
-      _selectedSavingsGoalId = widget.initialSavingsGoalId;
+      _selectedDate = widget.initialDate ?? DateTime.now();
+      if (widget.initialSavingsGoalId != null) {
+        _selectedCategory = 'Savings';
+        _selectedSavingsGoalId = widget.initialSavingsGoalId;
+      }
     }
   }
 
@@ -79,8 +82,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   Future<void> _listen() async {
     if (!_isListening) {
       bool available = await _speech.initialize(
-        onStatus: (status) => print('onStatus: $status'),
-        onError: (errorNotification) => print('onError: $errorNotification'),
+        onStatus: (status) {},
+        onError: (errorNotification) {},
       );
       if (available) {
         setState(() => _isListening = true);
@@ -454,7 +457,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           }
         } catch (e) {
           // Goal might not be found
-          print('Error updating goal: $e');
+          // debugPrint('Error updating goal: $e');
         }
       }
 

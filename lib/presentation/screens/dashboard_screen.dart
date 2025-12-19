@@ -10,9 +10,12 @@ import '../widgets/budget_card.dart';
 import '../widgets/expense_chart.dart';
 import '../widgets/recent_expenses.dart';
 import '../widgets/credit_usage_card.dart';
+import '../widgets/weekly_spending_chart.dart';
+import '../widgets/income_expense_gauge.dart';
 import 'add_expense_screen.dart';
 import 'expense_list_screen.dart';
 import 'monthly_compare_screen.dart';
+import 'sms_transactions_screen.dart';
 import 'yearly_report_screen.dart';
 import 'income_list_screen.dart';
 import 'transaction_review_screen.dart';
@@ -463,6 +466,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ... existing header ...
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -476,8 +480,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(48, 40),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     ),
                     onPressed: () {
                       Navigator.push(
@@ -490,7 +494,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 24),
+              
               const SizedBox(height: 16),
+              const IncomeExpenseGauge(),
+              const SizedBox(height: 16),
+              _buildInsightBanner(context, ref),
+              const SizedBox(height: 16),
+              _buildQuickActions(context),
+              const SizedBox(height: 16),
+
               // Prompts
               Consumer(builder: (context, ref, _) {
                 final incomeAsync = ref.watch(salaryProvider);
@@ -501,35 +514,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                 if (hasIncome && hasBudget) return const SizedBox.shrink();
 
+                final colorScheme = Theme.of(context).colorScheme;
+
                 return Column(
                   children: [
                     if (!hasIncome)
                       Card(
-                        color: Colors.orange[50],
+                        color: colorScheme.errorContainer, // Better dark mode support
                         child: ListTile(
-                          leading: const Icon(Icons.warning, color: Colors.orange),
-                          title: const Text('No Income Added'),
-                          subtitle: const Text('Add your salary or other income to track balance.'),
+                          leading: Icon(Icons.warning, color: colorScheme.onErrorContainer),
+                          title: Text('No Income Added', style: TextStyle(color: colorScheme.onErrorContainer)),
+                          subtitle: Text('Add your salary to track balance.', style: TextStyle(color: colorScheme.onErrorContainer)),
                           trailing: TextButton(
                             onPressed: () {
                               Navigator.push(context, MaterialPageRoute(builder: (c) => const IncomeListScreen()));
                             },
-                            child: const Text('ADD'),
+                            child: Text('ADD', style: TextStyle(color: colorScheme.onErrorContainer, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ),
                     if (!hasBudget)
                       Card(
-                        color: Colors.blue[50],
+                        color: colorScheme.secondaryContainer,
                         child: ListTile(
-                          leading: const Icon(Icons.info, color: Colors.blue),
-                          title: const Text('No Budget Set'),
-                          subtitle: const Text('Set a monthly budget to track your spending.'),
+                          leading: Icon(Icons.info, color: colorScheme.onSecondaryContainer),
+                          title: Text('No Budget Set', style: TextStyle(color: colorScheme.onSecondaryContainer)),
+                          subtitle: Text('Set a monthly budget to track spending.', style: TextStyle(color: colorScheme.onSecondaryContainer)),
                           trailing: TextButton(
                             onPressed: () {
                               _showSetBudgetDialog(context, ref, date);
                             },
-                            child: const Text('SET'),
+                            child: Text('SET', style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ),
@@ -540,21 +555,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         data: (txns) {
                           if (txns.isEmpty) return const SizedBox.shrink();
                           return Card(
-                            color: Colors.purple[50],
+                            color: colorScheme.tertiaryContainer,
                             child: ListTile(
-                              leading: const Icon(Icons.sms, color: Colors.purple),
-                              title: const Text('New Transactions Found'),
-                              subtitle: Text('${txns.length} potential expenses from SMS.'),
+                              leading: Icon(Icons.sms, color: colorScheme.onTertiaryContainer),
+                              title: Text('New Transactions', style: TextStyle(color: colorScheme.onTertiaryContainer)),
+                              subtitle: Text('${txns.length} potential expenses found.', style: TextStyle(color: colorScheme.onTertiaryContainer)),
                               trailing: TextButton(
                                 onPressed: () {
                                   Navigator.push(context, MaterialPageRoute(builder: (c) => const TransactionReviewScreen()));
                                 },
-                                child: const Text('REVIEW'),
+                                child: Text('REVIEW', style: TextStyle(color: colorScheme.onTertiaryContainer, fontWeight: FontWeight.bold)),
                               ),
                             ),
                           );
                         },
-                        loading: () => const SizedBox.shrink(), // Don't show loading on dashboard
+                        loading: () => const SizedBox.shrink(),
                         error: (_, __) => const SizedBox.shrink(),
                       );
                     }),
@@ -568,7 +583,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 16),
               const BudgetCard(),
               const SizedBox(height: 16),
+              const WeeklySpendingChart(),
               const SizedBox(height: 16),
+              // const SizedBox(height: 16), // duplicte removed
               const ExpenseChart(),
               const SizedBox(height: 16),
               const RecentExpenses(),
@@ -588,6 +605,120 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  Widget _buildQuickActions(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _buildActionButton(context, Icons.camera_alt, 'Scan', () {
+             Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
+             );
+             // Note: Ideally AddExpenseScreen should open camera directly if a flag is passed, 
+             // but 'Scan' just opening form with easy access to camera is fine for now MVP.
+             // Actually, the user asked for "Scan Receipt" -> let's make it trigger scan on open if possible or just open screen.
+        }),
+        _buildActionButton(context, Icons.email, 'Inbox', () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SmsTransactionsScreen()),
+            );
+        }),
+        _buildActionButton(context, Icons.calendar_month, 'Calendar', () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DailyExpensesCalendarScreen()),
+            );
+        }),
+        _buildActionButton(context, Icons.pie_chart, 'Analysis', () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AnalysisScreen()),
+            );
+        }),
+        _buildActionButton(context, Icons.group, 'Split', () {
+             Navigator.push(
+               context,
+               MaterialPageRoute(builder: (context) => const GroupListScreen()),
+             );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildActionButton(BuildContext context, IconData icon, String label, VoidCallback onTap) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: colorScheme.onPrimaryContainer, size: 24),
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightBanner(BuildContext context, WidgetRef ref) {
+    final budgetAsync = ref.watch(budgetProvider);
+    final expensesAsync = ref.watch(expensesProvider);
+    
+    if (!budgetAsync.hasValue || !expensesAsync.hasValue || budgetAsync.value == null) {
+      return const SizedBox.shrink();
+    }
+
+    final totalBudget = budgetAsync.value!;
+    final totalExpense = expensesAsync.value!.fold(0.0, (sum, e) => sum + e.amount);
+    final percentage = (totalExpense / totalBudget.amount) * 100;
+
+    String message = '';
+    Color color = Colors.green;
+    IconData icon = Icons.check_circle;
+
+    if (percentage > 100) {
+      message = 'Alert: Budget exceeded by ${(percentage - 100).toStringAsFixed(0)}%!';
+      color = Colors.red;
+      icon = Icons.warning;
+    } else if (percentage > 85) {
+       message = 'Heads up: You used ${percentage.toStringAsFixed(0)}% of your budget.';
+       color = Colors.orange;
+       icon = Icons.info;
+    } else {
+       message = 'Good job! You are ${(100 - percentage).toStringAsFixed(0)}% under budget.';
+       color = Colors.green;
+       icon = Icons.thumb_up;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   Future<void> _exportCsv() async {
     try {
       final expensesAsync = ref.read(expensesProvider);

@@ -40,6 +40,7 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
     try {
       await _repository.addExpense(expense);
       await loadExpenses();
+      _ref.refresh(allExpensesProvider);
       
       // Check budget
       final budget = _ref.read(budgetProvider).value;
@@ -68,6 +69,7 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
     try {
       await _repository.updateExpense(expense);
       await loadExpenses();
+      _ref.refresh(allExpensesProvider);
     } catch (e) {
       // Handle error
     }
@@ -77,6 +79,7 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
     try {
       await _repository.deleteExpense(id);
       await loadExpenses();
+      _ref.refresh(allExpensesProvider);
     } catch (e) {
       // Handle error
     }

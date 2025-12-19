@@ -11,6 +11,9 @@ import '../providers/recurring_income_provider.dart';
 import '../providers/theme_provider.dart';
 import '../../data/services/export_service.dart';
 import '../../data/services/biometric_service.dart';
+
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import '../../data/repositories/settings_repository.dart';
 import '../providers/app_lock_provider.dart';
 
@@ -23,7 +26,17 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final BackupService _backupService = BackupService();
+
   bool _isLoading = false;
+  
+
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+
 
   Future<void> _createBackup() async {
     setState(() => _isLoading = true);
@@ -85,7 +98,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeProvider);
+    final themeState = ref.watch(themeProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -93,18 +106,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text('Appearance', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                ),
                 ListTile(
                   leading: const Icon(Icons.brightness_6),
-                  title: const Text('Dark Mode'),
-                  trailing: Switch(
-                    value: themeMode == ThemeMode.dark,
-                    onChanged: (value) {
-                      ref.read(themeProvider.notifier).setTheme(
-                            value ? ThemeMode.dark : ThemeMode.light,
-                          );
+                  title: const Text('Theme Mode'),
+                  trailing: DropdownButton<ThemeMode>(
+                    value: themeState.mode,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                      DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+                      DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+                    ],
+                    onChanged: (mode) {
+                      if (mode != null) {
+                         ref.read(themeProvider.notifier).setThemeMode(mode);
+                      }
                     },
                   ),
                 ),
+                ListTile(
+                   leading: const Icon(Icons.palette),
+                   title: const Text('Accent Color'),
+                   subtitle: SingleChildScrollView(
+                     scrollDirection: Axis.horizontal,
+                     child: Row(
+                       children: [
+                         _buildColorOption(context, ref, Colors.blue, themeState.seedColor),
+                         _buildColorOption(context, ref, Colors.indigo, themeState.seedColor),
+                         _buildColorOption(context, ref, Colors.purple, themeState.seedColor),
+                         _buildColorOption(context, ref, Colors.green, themeState.seedColor),
+                         _buildColorOption(context, ref, Colors.teal, themeState.seedColor),
+                         _buildColorOption(context, ref, Colors.orange, themeState.seedColor),
+                         _buildColorOption(context, ref, Colors.red, themeState.seedColor),
+                         _buildColorOption(context, ref, Colors.pink, themeState.seedColor),
+                       ],
+                     ),
+                   ),
+                ),
+                const Divider(),
                 ListTile(
                   leading: const Icon(Icons.security),
                   title: const Text('App Lock'),
@@ -117,12 +160,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         final success = await ref.read(biometricServiceProvider).authenticate();
                         if (success) {
                           await ref.read(appLockProvider.notifier).setAppLockEnabled(true);
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authentication failed. App Lock not enabled.')));
+                          }
                         }
                       } else {
                         // verify before disabling
                         final success = await ref.read(biometricServiceProvider).authenticate();
                         if (success) {
                           await ref.read(appLockProvider.notifier).setAppLockEnabled(false);
+                        } else {
+                           if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authentication failed. App Lock remains enabled.')));
+                          }
                         }
                       }
                     },
@@ -176,10 +227,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   },
                 ),
                 const Divider(),
+
+                const Divider(),
                 ListTile(
                   leading: const Icon(Icons.backup),
-                  title: const Text('Backup Data'),
-                  subtitle: const Text('Export your data to a JSON file'),
+                  title: const Text('Local Backup'),
+                  subtitle: const Text('Export to JSON'),
                   onTap: _createBackup,
                 ),
                 const Divider(),
@@ -213,6 +266,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
+    );
+  }
+  Widget _buildColorOption(BuildContext context, WidgetRef ref, Color color, Color selectedColor) {
+    final isSelected = color.value == selectedColor.value;
+    return GestureDetector(
+      onTap: () {
+        ref.read(themeProvider.notifier).setSeedColor(color);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(right: 8, top: 8),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: isSelected ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2) : null,
+          boxShadow: [
+             if(isSelected) const BoxShadow(blurRadius: 4, color: Colors.black26),
+          ],
+        ),
+        child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
+      ),
     );
   }
 }

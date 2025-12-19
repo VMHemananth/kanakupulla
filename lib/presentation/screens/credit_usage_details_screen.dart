@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/expense_provider.dart';
+import '../providers/date_provider.dart';
 import '../providers/credit_card_provider.dart';
 
 import '../../data/models/expense_model.dart';
@@ -58,10 +59,38 @@ class _CreditUsageDetailsScreenState extends ConsumerState<CreditUsageDetailsScr
               data: (expenses) {
                 return creditCardsAsync.when(
                   data: (creditCards) {
-                    // Filter: CREDIT CARD ONLY + NOT BILLS
-                    final ccExpenses = expenses.where(
-                      (e) => e.paymentMethod == 'Credit Card' && !e.isCreditCardBill
-                    ).toList();
+                    final selectedDate = ref.watch(selectedDateProvider);
+                    final now = DateTime.now();
+
+                    // Filter: CREDIT CARD ONLY + NOT BILLS + DATE/BILLING LOGIC
+                    final ccExpenses = expenses.where((e) {
+                      if (e.paymentMethod != 'Credit Card' || e.isCreditCardBill) return false;
+
+                      // Get card for billing day logic
+                      final card = creditCards.firstWhere(
+                        (c) => c.id == e.creditCardId, 
+                        orElse: () => CreditCardModel(id: '', name: '', billingDay: 1),
+                      );
+
+                      if (card.id.isEmpty && e.creditCardId != null) return false;
+
+                      final isSelectedMonth = e.date.year == selectedDate.year && e.date.month == selectedDate.month;
+                      
+                      final isPreviousMonth = (e.date.year == selectedDate.year && e.date.month == selectedDate.month - 1) ||
+                                            (selectedDate.month == 1 && e.date.month == 12 && e.date.year == selectedDate.year - 1);
+
+                      if (isSelectedMonth) {
+                        return true;
+                      } else if (isPreviousMonth) {
+                        final lastDayOfSelectedMonth = DateTime(selectedDate.year, selectedDate.month + 1, 0).day;
+                        final effectiveBillingDay = card.billingDay > lastDayOfSelectedMonth ? lastDayOfSelectedMonth : card.billingDay;
+                        final billingDeadline = DateTime(selectedDate.year, selectedDate.month, effectiveBillingDay);
+                        
+                        return now.isBefore(billingDeadline);
+                      }
+
+                      return false;
+                    }).toList();
             
                     // Sort descending by date
                     ccExpenses.sort((a,b) => b.date.compareTo(a.date));

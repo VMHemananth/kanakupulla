@@ -40,15 +40,15 @@ class _KanakupullaAppState extends ConsumerState<KanakupullaApp> with WidgetsBin
   @override
   Widget build(BuildContext context) {
     final authStatus = ref.watch(authProvider);
-    final themeMode = ref.watch(themeProvider);
+    final themeState = ref.watch(themeProvider);
     final isLocked = ref.watch(sessionLockProvider);
 
     return MaterialApp(
       title: 'Kanakupulla',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeMode,
+      theme: AppTheme.lightTheme(themeState.seedColor),
+      darkTheme: AppTheme.darkTheme(themeState.seedColor),
+      themeMode: themeState.mode,
       home: _getHomeScreen(authStatus),
       builder: (context, child) {
         return Stack(

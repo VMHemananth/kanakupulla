@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../providers/yearly_stats_provider.dart';
+import '../providers/expense_provider.dart';
 import '../../data/repositories/expense_repository.dart';
 import '../../data/repositories/salary_repository.dart';
 import 'monthly_detailed_report_screen.dart';
@@ -299,9 +300,9 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
                                     legend: '${e.key} (${(e.value/mTotalInc*100).toStringAsFixed(0)}%)',
                                     value: e.value,
                                     color: PdfColors.green, 
-                                    legendStyle: const pw.TextStyle(fontSize: 8),
+                                    legendStyle: const pw.TextStyle(fontSize: 9),
                                     legendPosition: pw.PieLegendPosition.outside,
-                                    offset: 10,
+                                    offset: 25, // Increased offset for better spacing
                                   );
                                 }).toList(),
                               ),
@@ -346,6 +347,7 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(yearlyStatsProvider(_selectedYear));
+    final allExpensesAsync = ref.watch(allExpensesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -472,6 +474,12 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
 
                     const SizedBox(height: 16),
                     
+                    // NEW: Inflation/Lifestyle Watch
+                    if (allExpensesAsync.value != null && allExpensesAsync.value!.isNotEmpty)
+                      _buildInflationWatch(stats, allExpensesAsync.value!),
+
+                    const SizedBox(height: 16),
+                    
                     // Monthly List
                     Expanded(
                       child: ListView.builder(
@@ -564,6 +572,166 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInflationWatch(List<MonthlyStat> stats, List<dynamic> allExpenses) {
+    // Filter expenses for current year
+    final expenses = allExpenses.where((e) => e.date.year == _selectedYear).toList();
+    if (expenses.isEmpty) return const SizedBox.shrink();
+
+    // Use stats to determine active months
+    final months = stats.map((s) => s.month).toSet().toList()..sort();
+    
+    // Check if we have enough data (need at least 3 months for reliable trend)
+    if (months.length < 3) {
+      return Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        color: Colors.grey.shade100,
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+             children: [
+               Icon(Icons.info_outline, color: Colors.grey.shade600),
+               const SizedBox(width: 8),
+               Expanded(
+                 child: Text(
+                   'Inflation Watch requires at least 3 months of data to detect trends.',
+                   style: TextStyle(color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+                 ),
+               ),
+             ],
+          ),
+        ),
+      );
+    }
+
+    // Logic: Compare Avg Spend of [first 3 available months] vs [last 3 available months]
+    // User requested "first 3 months vs last 3 months".
+    
+    final earlyMonths = months.take(3).toList();
+    final lateMonths = months.reversed.take(3).toList(); // Last 3, reversed order (latest first)
+
+    double getAvgForCategory(List<int> targetMonths, String category) {
+      double total = 0;
+      int methodCount = 0;
+      for (var m in targetMonths) {
+        final monthlyExp = expenses.where((e) => e.date.month == m && e.category == category);
+        // Sum expenses for that category in that month
+        final sum = monthlyExp.fold(0.0, (s, e) => s + e.amount);
+        // Only count months where there was ANY spending? 
+        // Or count all months in period? 
+        // Better to avg over the period length to catch "new" regular expenses vs "occasional".
+        // If we divide by targetMonths.length, it reflects "monthly average over the period".
+        total += sum;
+      }
+      return targetMonths.isEmpty ? 0 : total / targetMonths.length;
+    }
+
+    // Identify Categories
+    final categories = expenses.map((e) => e.category).toSet();
+    final alerts = <Map<String, dynamic>>[];
+
+    for (var cat in categories) {
+      final earlyAvg = getAvgForCategory(earlyMonths, cat);
+      final lateAvg = getAvgForCategory(lateMonths, cat);
+      
+      // Thresholds: Significant spend (> 500) and > 15% increase
+      if (earlyAvg > 500) { 
+        final increase = lateAvg - earlyAvg;
+        final pct = (increase / earlyAvg) * 100;
+        
+        if (pct > 15) { 
+            alerts.add({
+              'category': cat,
+              'pct': pct,
+              'early': earlyAvg,
+              'late': lateAvg,
+            });
+        }
+      }
+    }
+
+    if (alerts.isEmpty) {
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          color: Colors.green.shade50,
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+               children: [
+                 Icon(Icons.check_circle_outline, color: Colors.green.shade700),
+                 const SizedBox(width: 8),
+                 Expanded(
+                   child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Text('Lifestyle Watch', style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+                       Text(
+                         'Great! No significant spending increases detected across the year.',
+                         style: TextStyle(color: Colors.green.shade700),
+                       ),
+                     ],
+                   ),
+                 ),
+               ],
+            ),
+          ),
+        );
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      color: Colors.orange.shade50,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+             Row(
+               children: [
+                 Icon(Icons.trending_up, color: Colors.orange.shade900),
+                 const SizedBox(width: 8),
+                 Text('Inflation & Lifestyle Watch', style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 16)),
+               ],
+             ),
+             const SizedBox(height: 12),
+             Text(
+               'Comparing average spending of the first 3 months vs last 3 months:', 
+               style: TextStyle(fontSize: 12, color: Colors.orange.shade900.withOpacity(0.8)),
+             ),
+             const SizedBox(height: 8),
+             ...alerts.map((alert) => Padding(
+               padding: const EdgeInsets.only(bottom: 8.0),
+               child: Row(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                   const Icon(Icons.arrow_right, color: Colors.red, size: 20),
+                   Expanded(
+                     child: RichText(
+                       text: TextSpan(
+                         style: const TextStyle(color: Colors.black87),
+                         children: [
+                           TextSpan(text: '${alert['category']} ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                           const TextSpan(text: 'rose by '),
+                           TextSpan(text: '${alert['pct'].toStringAsFixed(0)}%', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                           TextSpan(text: ' (₹${alert['early'].toStringAsFixed(0)} → ₹${alert['late'].toStringAsFixed(0)})'),
+                         ],
+                       ),
+                     ),
+                   ),
+                 ],
+               ),
+             )),
+          ],
+        ),
       ),
     );
   }

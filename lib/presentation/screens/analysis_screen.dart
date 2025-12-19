@@ -6,6 +6,7 @@ import '../providers/category_provider.dart';
 import '../../data/models/category_model.dart';
 import '../../data/models/expense_model.dart';
 import '../widgets/daily_spending_chart.dart';
+import '../widgets/monthly_trend_chart.dart';
 import '../providers/date_provider.dart';
 
 class AnalysisScreen extends ConsumerWidget {
@@ -14,6 +15,7 @@ class AnalysisScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expensesAsync = ref.watch(expensesProvider);
+    final allExpensesAsync = ref.watch(allExpensesProvider);
     final incomeAsync = ref.watch(salaryProvider);
     final categoriesAsync = ref.watch(categoryProvider);
 
@@ -34,7 +36,7 @@ class AnalysisScreen extends ConsumerWidget {
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 24),
-            if (expensesAsync.isLoading || incomeAsync.isLoading || categoriesAsync.isLoading)
+            if (expensesAsync.isLoading || incomeAsync.isLoading || categoriesAsync.isLoading || allExpensesAsync.isLoading)
               const Center(child: CircularProgressIndicator())
             else if (expensesAsync.hasError || incomeAsync.hasError)
               const Center(child: Text('Error loading data'))
@@ -45,6 +47,7 @@ class AnalysisScreen extends ConsumerWidget {
                 incomeAsync.value ?? [],
                 categoriesAsync.value ?? [],
                 ref.watch(selectedDateProvider),
+                allExpensesAsync.value ?? [],
               ),
           ],
         ),
@@ -58,6 +61,7 @@ class AnalysisScreen extends ConsumerWidget {
     List<dynamic> incomes,
     List<CategoryModel> categories,
     DateTime date,
+    List<ExpenseModel> allExpenses,
   ) {
     final totalIncome = incomes.fold<double>(0, (sum, item) => sum + item.amount);
     
@@ -97,6 +101,8 @@ class AnalysisScreen extends ConsumerWidget {
     return Column(
       children: [
         _buildSmartForecast(context, expenses, totalIncome, date),
+        const SizedBox(height: 24),
+        MonthlyTrendChart(allExpenses: allExpenses, selectedDate: date),
         const SizedBox(height: 24),
         _buildTopSpenders(context, expenses, categories),
         const SizedBox(height: 24),
@@ -140,7 +146,7 @@ class AnalysisScreen extends ConsumerWidget {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        _buildSuggestions(needsPct, wantsPct, savingsPct),
+        _buildSuggestions(context, needsPct, wantsPct, savingsPct),
       ],
     );
   }
@@ -154,6 +160,8 @@ class AnalysisScreen extends ConsumerWidget {
 
     final daysPassed = now.day;
     final totalDaysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final daysRemaining = totalDaysInMonth - daysPassed;
+    
     final totalSpent = expenses.fold<double>(0, (sum, item) => sum + item.amount);
     
     if (daysPassed == 0) return const SizedBox.shrink();
@@ -162,10 +170,15 @@ class AnalysisScreen extends ConsumerWidget {
     final projectedTotal = avgDaily * totalDaysInMonth;
     final status = projectedTotal > totalIncome ? 'Risk of Overspending' : 'On Track';
     final statusColor = projectedTotal > totalIncome ? Colors.red : Colors.green;
+    
+    // SAFE DAILY SPEND CALCULATION
+    final remainingBudget = totalIncome - totalSpent;
+    final safeDaily = (remainingBudget > 0 && daysRemaining > 0) ? remainingBudget / daysRemaining : 0.0;
 
     return Card(
       elevation: 4,
       color: Colors.indigo[50],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -178,14 +191,16 @@ class AnalysisScreen extends ConsumerWidget {
                 const Text('Smart Forecast', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            
+            // Row 1: Projection
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Projected Total', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
+                    Text('Projected Month End', style: TextStyle(color: Colors.indigo.shade700, fontSize: 12)),
                     Text('₹${projectedTotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   ],
                 ),
@@ -196,14 +211,37 @@ class AnalysisScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: statusColor),
                   ),
-                  child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold)),
+                  child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Based on your average daily spending of ₹${avgDaily.toStringAsFixed(0)}',
-              style: TextStyle(fontSize: 12, color: Colors.grey[800], fontWeight: FontWeight.w500),
+            
+            const Divider(height: 24),
+            
+            // Row 2: The Actionable Advice
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.shield_outlined, color: Colors.green),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Safe Daily Limit', style: TextStyle(color: Colors.indigo.shade700, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Spend max ₹${safeDaily.toStringAsFixed(0)}/day', 
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      Text('to finish the month within income.', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -238,6 +276,8 @@ class AnalysisScreen extends ConsumerWidget {
               final entry = top3[index];
               return Card(
                 margin: const EdgeInsets.only(right: 12),
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Container(
                   width: 140,
                   padding: const EdgeInsets.all(12),
@@ -253,7 +293,7 @@ class AnalysisScreen extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Text(
                         '₹${entry.value.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 16, color: Colors.blueAccent, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 16, color: Colors.indigo, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -265,7 +305,6 @@ class AnalysisScreen extends ConsumerWidget {
       ],
     );
   }
-
 
   Widget _buildCategoryCard(
     BuildContext context,
@@ -281,12 +320,12 @@ class AnalysisScreen extends ConsumerWidget {
     final isUnderTarget = isSavings && current < target;
     final statusColor = (isOverBudget || isUnderTarget) ? Colors.red : Colors.green;
 
-    return GestureDetector(
-      onTap: () {
-        _showCategoryDetails(context, title, description, isSavings);
-      },
-      child: Card(
-        elevation: 4,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () => _showCategoryDetails(context, title, description, isSavings),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -302,11 +341,14 @@ class AnalysisScreen extends ConsumerWidget {
               const SizedBox(height: 4),
               Text(description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
               const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: (current / (isSavings ? (target * 2) : target)).clamp(0.0, 1.0), // Scale for visual
-                backgroundColor: color.withOpacity(0.1),
-                color: color,
-                minHeight: 10,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (current / (isSavings ? (target * 2) : target)).clamp(0.0, 1.0),
+                  backgroundColor: color.withOpacity(0.1),
+                  color: color,
+                  minHeight: 10,
+                ),
               ),
               const SizedBox(height: 12),
               Row(
@@ -333,10 +375,6 @@ class AnalysisScreen extends ConsumerWidget {
   }
 
   void _showCategoryDetails(BuildContext context, String title, String description, bool isSavings) {
-    // We need access to expenses and categories here. 
-    // Since this is a stateless widget, we can pass them or use Consumer in the bottom sheet.
-    // Using Consumer is cleaner.
-    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -364,11 +402,27 @@ class AnalysisScreen extends ConsumerWidget {
 
             return Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    '$title Expenses',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2)),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '$title Expenses',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      Text(description, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    ],
                   ),
                 ),
                 Expanded(
@@ -379,13 +433,21 @@ class AnalysisScreen extends ConsumerWidget {
                           itemCount: filteredExpenses.length,
                           itemBuilder: (context, index) {
                             final expense = filteredExpenses[index];
-                            return ListTile(
-                              leading: CircleAvatar(child: Text(expense.category[0])),
-                              title: Text(expense.title),
-                              subtitle: Text(expense.category),
-                              trailing: Text(
-                                '₹${expense.amount.toStringAsFixed(0)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                             return Card(
+                              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.indigo.shade50,
+                                  child: Text(expense.category[0], style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold)),
+                                ),
+                                title: Text(expense.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text('${expense.category} • ${expense.date.day}/${expense.date.month}'),
+                                trailing: Text(
+                                  '₹${expense.amount.toStringAsFixed(0)}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
                               ),
                             );
                           },
@@ -399,27 +461,31 @@ class AnalysisScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSuggestions(double needsPct, double wantsPct, double savingsPct) {
+  Widget _buildSuggestions(BuildContext context, double needsPct, double wantsPct, double savingsPct) {
     final List<Widget> suggestions = [];
 
     if (needsPct > 50) {
       suggestions.add(_buildSuggestionItem(
         'Reduce Needs',
-        'Your needs are taking up ${needsPct.toStringAsFixed(1)}% of your income. Look for ways to save on utilities, groceries, or rent.',
+        'Your needs are taking up ${needsPct.toStringAsFixed(1)}% of your income. Look for ways to save.',
+        onTap: () => _showCategoryDetails(context, 'Needs', 'Needs Expenses', false),
       ));
     }
 
     if (wantsPct > 30) {
       suggestions.add(_buildSuggestionItem(
         'Cut Down Wants',
-        'Your wants are at ${wantsPct.toStringAsFixed(1)}%. Try cooking at home more often or cancelling unused subscriptions.',
+        'Your wants are at ${wantsPct.toStringAsFixed(1)}%. Try cancelling unused subscriptions.',
+        onTap: () => _showCategoryDetails(context, 'Wants', 'Discretionary Expenses', false),
       ));
     }
 
     if (savingsPct < 20) {
       suggestions.add(_buildSuggestionItem(
         'Boost Savings',
-        'You are saving only ${savingsPct.toStringAsFixed(1)}%. Try to set aside at least 20% for your future.',
+        'You are saving only ${savingsPct.toStringAsFixed(1)}%. Try to set aside at least 20%.',
+        // No direct breakdown for savings "expense" usually, but we can show savings
+        onTap: () => _showCategoryDetails(context, 'Savings', 'Savings & Investments', true),
       ));
     }
 
@@ -435,13 +501,34 @@ class AnalysisScreen extends ConsumerWidget {
     return Column(children: suggestions);
   }
 
-  Widget _buildSuggestionItem(String title, String body, {IconData icon = Icons.lightbulb, Color color = Colors.amber}) {
+  Widget _buildSuggestionItem(String title, String body, {IconData icon = Icons.lightbulb, Color color = Colors.amber, VoidCallback? onTap}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(body),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    Text(body, style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+                  ],
+                ),
+              ),
+              if (onTap != null)
+                const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -57,6 +57,15 @@ class BackupService {
       if (result == null || result.files.single.path == null) return false;
 
       final file = File(result.files.single.path!);
+      return await restoreFromFile(file);
+    } catch (e) {
+      print('Restore failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> restoreFromFile(File file) async {
+    try {
       final jsonString = await file.readAsString();
       final Map<String, dynamic> data = jsonDecode(jsonString);
 
@@ -114,8 +123,8 @@ class BackupService {
 
       return true;
     } catch (e) {
-      print('Restore failed: $e');
-      return false;
+       print('Restore From File failed: $e');
+       rethrow;
     }
   }
 }

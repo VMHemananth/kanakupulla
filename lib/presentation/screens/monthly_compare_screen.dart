@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../providers/expense_provider.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/services/pdf_service.dart';
 
 class MonthlyCompareScreen extends ConsumerStatefulWidget {
   const MonthlyCompareScreen({super.key});
@@ -12,7 +13,9 @@ class MonthlyCompareScreen extends ConsumerStatefulWidget {
   ConsumerState<MonthlyCompareScreen> createState() => _MonthlyCompareScreenState();
 }
 
+
 class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
+  // ... existing variables ...
   int month1 = DateTime.now().month;
   int year1 = DateTime.now().year;
   int month2 = DateTime.now().month == 1 ? 12 : DateTime.now().month - 1;
@@ -28,7 +31,20 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
     final expensesAsync = ref.watch(allExpensesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Monthly Compare')),
+      appBar: AppBar(
+        title: const Text('Monthly Compare'),
+        actions: [
+           expensesAsync.when(
+             data: (expenses) => IconButton(
+               icon: const Icon(Icons.picture_as_pdf),
+               tooltip: 'Export Report',
+               onPressed: () => _exportPdf(expenses),
+             ),
+             loading: () => const SizedBox.shrink(),
+             error: (_, __) => const SizedBox.shrink(),
+           ),
+        ],
+      ),
       body: expensesAsync.when(
         data: (allExpenses) {
           return SingleChildScrollView(
@@ -59,6 +75,7 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
     );
   }
 
+  // ... _buildMonthSelectors omitted ...
   Widget _buildMonthSelectors() {
     return Row(
       children: [
@@ -131,6 +148,7 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
     );
   }
 
+  // ... _buildTrendChart omitted (assume same) ...
   Widget _buildTrendChart(List<ExpenseModel> allExpenses) {
     // Calculate last 6 months totals
     final now = DateTime.now();
@@ -193,6 +211,7 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
     );
   }
 
+  // ... _buildComparisonChart omitted (assume same) ...
   Widget _buildComparisonChart(List<ExpenseModel> allExpenses) {
     final expenses1 = allExpenses.where((e) => e.date.month == month1 && e.date.year == year1).toList();
     final expenses2 = allExpenses.where((e) => e.date.month == month2 && e.date.year == year2).toList();
@@ -206,8 +225,8 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
     final totals2 = {for (var c in catList) c: expenses2.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
 
     if (catList.isEmpty) return const Center(child: Text('No data to compare'));
-
-    // Find max value for scaling
+    
+     // Find max value for scaling
     double maxY = 0;
     for (var cat in catList) {
       if ((totals1[cat] ?? 0) > maxY) maxY = totals1[cat]!;
@@ -310,6 +329,15 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
         final isIncrease = diff > 0;
         final diffColor = isIncrease ? Colors.red : Colors.green;
         final diffIcon = isIncrease ? Icons.arrow_upward : Icons.arrow_downward;
+        
+        // Calculate Percentage Change
+        String percentStr = '0%';
+        if (amt2 != 0) {
+           final p = ((diff / amt2) * 100).abs();
+           percentStr = '${p.toStringAsFixed(1)}%';
+        } else if (amt1 > 0) {
+           percentStr = '100%';
+        }
 
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 4),
@@ -332,15 +360,19 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
                   ),
                 ),
                 Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Icon(diffIcon, size: 16, color: diffColor),
                       Text(
-                        ' ₹${diff.abs().toStringAsFixed(0)}',
+                        ' ₹${diff.abs().toStringAsFixed(0)} ',
                         style: TextStyle(color: diffColor, fontWeight: FontWeight.bold),
                       ),
+                      Text(
+                        '($percentStr)', 
+                         style: TextStyle(color: diffColor, fontSize: 12),
+                      )
                     ],
                   ),
                 ),
@@ -350,5 +382,53 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
         );
       },
     );
+  }
+
+  Future<void> _exportPdf(List<ExpenseModel> allExpenses) async {
+     // Prepare Data for PDF
+     final now = DateTime.now();
+     
+     // 1. Trend Data
+     final trendValues = <double>[];
+     final trendLabels = <String>[];
+     for (int i = 5; i >= 0; i--) {
+        final date = DateTime(now.year, now.month - i, 1);
+        final total = allExpenses
+            .where((e) => e.date.year == date.year && e.date.month == date.month)
+            .fold(0.0, (sum, e) => sum + e.amount);
+        trendValues.add(total);
+        trendLabels.add(monthNames[date.month - 1]);
+     }
+
+     // 2. Comparison Data
+     final expenses1 = allExpenses.where((e) => e.date.month == month1 && e.date.year == year1).toList();
+     final expenses2 = allExpenses.where((e) => e.date.month == month2 && e.date.year == year2).toList();
+     final allCats = <String>{};
+     for (var e in expenses1) allCats.add(e.category);
+     for (var e in expenses2) allCats.add(e.category);
+     final catList = allCats.toList()..sort();
+     
+     final totals1 = {for (var c in catList) c: expenses1.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
+     final totals2 = {for (var c in catList) c: expenses2.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
+
+     // Call Service
+     try {
+       await PdfService().generateMonthlyCompareReport(
+         month1Title: '${monthNames[month1 - 1]} $year1',
+         month2Title: '${monthNames[month2 - 1]} $year2',
+         trendData: trendValues,
+         trendLabels: trendLabels,
+         categories: catList,
+         totals1: totals1,
+         totals2: totals2,
+       );
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report generated successfully')));
+       }
+     } catch (e) {
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+       }
+     }
   }
 }

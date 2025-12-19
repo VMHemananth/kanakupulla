@@ -47,6 +47,8 @@ _$SplitExpenseImpl _$$SplitExpenseImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      isPaidFromPool: json['is_paid_from_pool'] as bool? ?? false,
+      type: json['type'] as String? ?? 'EXPENSE',
     );
 
 Map<String, dynamic> _$$SplitExpenseImplToJson(_$SplitExpenseImpl instance) =>
@@ -58,4 +60,24 @@ Map<String, dynamic> _$$SplitExpenseImplToJson(_$SplitExpenseImpl instance) =>
       'paid_by_member_id': instance.paidByMemberId,
       'date': instance.date.toIso8601String(),
       'split_with': instance.splitWith,
+      'is_paid_from_pool': instance.isPaidFromPool,
+      'type': instance.type,
+    };
+
+_$ActivityLogImpl _$$ActivityLogImplFromJson(Map<String, dynamic> json) =>
+    _$ActivityLogImpl(
+      id: json['id'] as String,
+      groupId: json['group_id'] as String,
+      description: json['description'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      userName: json['user_name'] as String,
+    );
+
+Map<String, dynamic> _$$ActivityLogImplToJson(_$ActivityLogImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'group_id': instance.groupId,
+      'description': instance.description,
+      'timestamp': instance.timestamp.toIso8601String(),
+      'user_name': instance.userName,
     };

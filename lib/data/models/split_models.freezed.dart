@@ -436,6 +436,9 @@ mixin _$SplitExpense {
   DateTime get date => throw _privateConstructorUsedError;
   @JsonKey(name: 'split_with')
   List<String> get splitWith => throw _privateConstructorUsedError;
+  @JsonKey(name: 'is_paid_from_pool')
+  bool get isPaidFromPool => throw _privateConstructorUsedError;
+  String get type => throw _privateConstructorUsedError;
 
   /// Serializes this SplitExpense to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -462,6 +465,8 @@ abstract class $SplitExpenseCopyWith<$Res> {
     @JsonKey(name: 'paid_by_member_id') String paidByMemberId,
     DateTime date,
     @JsonKey(name: 'split_with') List<String> splitWith,
+    @JsonKey(name: 'is_paid_from_pool') bool isPaidFromPool,
+    String type,
   });
 }
 
@@ -487,6 +492,8 @@ class _$SplitExpenseCopyWithImpl<$Res, $Val extends SplitExpense>
     Object? paidByMemberId = null,
     Object? date = null,
     Object? splitWith = null,
+    Object? isPaidFromPool = null,
+    Object? type = null,
   }) {
     return _then(
       _value.copyWith(
@@ -518,6 +525,14 @@ class _$SplitExpenseCopyWithImpl<$Res, $Val extends SplitExpense>
                 ? _value.splitWith
                 : splitWith // ignore: cast_nullable_to_non_nullable
                       as List<String>,
+            isPaidFromPool: null == isPaidFromPool
+                ? _value.isPaidFromPool
+                : isPaidFromPool // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            type: null == type
+                ? _value.type
+                : type // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -541,6 +556,8 @@ abstract class _$$SplitExpenseImplCopyWith<$Res>
     @JsonKey(name: 'paid_by_member_id') String paidByMemberId,
     DateTime date,
     @JsonKey(name: 'split_with') List<String> splitWith,
+    @JsonKey(name: 'is_paid_from_pool') bool isPaidFromPool,
+    String type,
   });
 }
 
@@ -565,6 +582,8 @@ class __$$SplitExpenseImplCopyWithImpl<$Res>
     Object? paidByMemberId = null,
     Object? date = null,
     Object? splitWith = null,
+    Object? isPaidFromPool = null,
+    Object? type = null,
   }) {
     return _then(
       _$SplitExpenseImpl(
@@ -596,6 +615,14 @@ class __$$SplitExpenseImplCopyWithImpl<$Res>
             ? _value._splitWith
             : splitWith // ignore: cast_nullable_to_non_nullable
                   as List<String>,
+        isPaidFromPool: null == isPaidFromPool
+            ? _value.isPaidFromPool
+            : isPaidFromPool // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        type: null == type
+            ? _value.type
+            : type // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -612,6 +639,8 @@ class _$SplitExpenseImpl implements _SplitExpense {
     @JsonKey(name: 'paid_by_member_id') required this.paidByMemberId,
     required this.date,
     @JsonKey(name: 'split_with') final List<String> splitWith = const [],
+    @JsonKey(name: 'is_paid_from_pool') this.isPaidFromPool = false,
+    this.type = 'EXPENSE',
   }) : _splitWith = splitWith;
 
   factory _$SplitExpenseImpl.fromJson(Map<String, dynamic> json) =>
@@ -641,8 +670,15 @@ class _$SplitExpenseImpl implements _SplitExpense {
   }
 
   @override
+  @JsonKey(name: 'is_paid_from_pool')
+  final bool isPaidFromPool;
+  @override
+  @JsonKey()
+  final String type;
+
+  @override
   String toString() {
-    return 'SplitExpense(id: $id, groupId: $groupId, title: $title, amount: $amount, paidByMemberId: $paidByMemberId, date: $date, splitWith: $splitWith)';
+    return 'SplitExpense(id: $id, groupId: $groupId, title: $title, amount: $amount, paidByMemberId: $paidByMemberId, date: $date, splitWith: $splitWith, isPaidFromPool: $isPaidFromPool, type: $type)';
   }
 
   @override
@@ -660,7 +696,10 @@ class _$SplitExpenseImpl implements _SplitExpense {
             const DeepCollectionEquality().equals(
               other._splitWith,
               _splitWith,
-            ));
+            ) &&
+            (identical(other.isPaidFromPool, isPaidFromPool) ||
+                other.isPaidFromPool == isPaidFromPool) &&
+            (identical(other.type, type) || other.type == type));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -674,6 +713,8 @@ class _$SplitExpenseImpl implements _SplitExpense {
     paidByMemberId,
     date,
     const DeepCollectionEquality().hash(_splitWith),
+    isPaidFromPool,
+    type,
   );
 
   /// Create a copy of SplitExpense
@@ -699,6 +740,8 @@ abstract class _SplitExpense implements SplitExpense {
     @JsonKey(name: 'paid_by_member_id') required final String paidByMemberId,
     required final DateTime date,
     @JsonKey(name: 'split_with') final List<String> splitWith,
+    @JsonKey(name: 'is_paid_from_pool') final bool isPaidFromPool,
+    final String type,
   }) = _$SplitExpenseImpl;
 
   factory _SplitExpense.fromJson(Map<String, dynamic> json) =
@@ -721,11 +764,269 @@ abstract class _SplitExpense implements SplitExpense {
   @override
   @JsonKey(name: 'split_with')
   List<String> get splitWith;
+  @override
+  @JsonKey(name: 'is_paid_from_pool')
+  bool get isPaidFromPool;
+  @override
+  String get type;
 
   /// Create a copy of SplitExpense
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$SplitExpenseImplCopyWith<_$SplitExpenseImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+ActivityLog _$ActivityLogFromJson(Map<String, dynamic> json) {
+  return _ActivityLog.fromJson(json);
+}
+
+/// @nodoc
+mixin _$ActivityLog {
+  String get id => throw _privateConstructorUsedError;
+  @JsonKey(name: 'group_id')
+  String get groupId => throw _privateConstructorUsedError;
+  String get description => throw _privateConstructorUsedError;
+  DateTime get timestamp => throw _privateConstructorUsedError;
+  @JsonKey(name: 'user_name')
+  String get userName => throw _privateConstructorUsedError;
+
+  /// Serializes this ActivityLog to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of ActivityLog
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $ActivityLogCopyWith<ActivityLog> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $ActivityLogCopyWith<$Res> {
+  factory $ActivityLogCopyWith(
+    ActivityLog value,
+    $Res Function(ActivityLog) then,
+  ) = _$ActivityLogCopyWithImpl<$Res, ActivityLog>;
+  @useResult
+  $Res call({
+    String id,
+    @JsonKey(name: 'group_id') String groupId,
+    String description,
+    DateTime timestamp,
+    @JsonKey(name: 'user_name') String userName,
+  });
+}
+
+/// @nodoc
+class _$ActivityLogCopyWithImpl<$Res, $Val extends ActivityLog>
+    implements $ActivityLogCopyWith<$Res> {
+  _$ActivityLogCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of ActivityLog
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? groupId = null,
+    Object? description = null,
+    Object? timestamp = null,
+    Object? userName = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as String,
+            groupId: null == groupId
+                ? _value.groupId
+                : groupId // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: null == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String,
+            timestamp: null == timestamp
+                ? _value.timestamp
+                : timestamp // ignore: cast_nullable_to_non_nullable
+                      as DateTime,
+            userName: null == userName
+                ? _value.userName
+                : userName // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$ActivityLogImplCopyWith<$Res>
+    implements $ActivityLogCopyWith<$Res> {
+  factory _$$ActivityLogImplCopyWith(
+    _$ActivityLogImpl value,
+    $Res Function(_$ActivityLogImpl) then,
+  ) = __$$ActivityLogImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String id,
+    @JsonKey(name: 'group_id') String groupId,
+    String description,
+    DateTime timestamp,
+    @JsonKey(name: 'user_name') String userName,
+  });
+}
+
+/// @nodoc
+class __$$ActivityLogImplCopyWithImpl<$Res>
+    extends _$ActivityLogCopyWithImpl<$Res, _$ActivityLogImpl>
+    implements _$$ActivityLogImplCopyWith<$Res> {
+  __$$ActivityLogImplCopyWithImpl(
+    _$ActivityLogImpl _value,
+    $Res Function(_$ActivityLogImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of ActivityLog
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? groupId = null,
+    Object? description = null,
+    Object? timestamp = null,
+    Object? userName = null,
+  }) {
+    return _then(
+      _$ActivityLogImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as String,
+        groupId: null == groupId
+            ? _value.groupId
+            : groupId // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: null == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String,
+        timestamp: null == timestamp
+            ? _value.timestamp
+            : timestamp // ignore: cast_nullable_to_non_nullable
+                  as DateTime,
+        userName: null == userName
+            ? _value.userName
+            : userName // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$ActivityLogImpl implements _ActivityLog {
+  const _$ActivityLogImpl({
+    required this.id,
+    @JsonKey(name: 'group_id') required this.groupId,
+    required this.description,
+    required this.timestamp,
+    @JsonKey(name: 'user_name') required this.userName,
+  });
+
+  factory _$ActivityLogImpl.fromJson(Map<String, dynamic> json) =>
+      _$$ActivityLogImplFromJson(json);
+
+  @override
+  final String id;
+  @override
+  @JsonKey(name: 'group_id')
+  final String groupId;
+  @override
+  final String description;
+  @override
+  final DateTime timestamp;
+  @override
+  @JsonKey(name: 'user_name')
+  final String userName;
+
+  @override
+  String toString() {
+    return 'ActivityLog(id: $id, groupId: $groupId, description: $description, timestamp: $timestamp, userName: $userName)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ActivityLogImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.groupId, groupId) || other.groupId == groupId) &&
+            (identical(other.description, description) ||
+                other.description == description) &&
+            (identical(other.timestamp, timestamp) ||
+                other.timestamp == timestamp) &&
+            (identical(other.userName, userName) ||
+                other.userName == userName));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, id, groupId, description, timestamp, userName);
+
+  /// Create a copy of ActivityLog
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ActivityLogImplCopyWith<_$ActivityLogImpl> get copyWith =>
+      __$$ActivityLogImplCopyWithImpl<_$ActivityLogImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$ActivityLogImplToJson(this);
+  }
+}
+
+abstract class _ActivityLog implements ActivityLog {
+  const factory _ActivityLog({
+    required final String id,
+    @JsonKey(name: 'group_id') required final String groupId,
+    required final String description,
+    required final DateTime timestamp,
+    @JsonKey(name: 'user_name') required final String userName,
+  }) = _$ActivityLogImpl;
+
+  factory _ActivityLog.fromJson(Map<String, dynamic> json) =
+      _$ActivityLogImpl.fromJson;
+
+  @override
+  String get id;
+  @override
+  @JsonKey(name: 'group_id')
+  String get groupId;
+  @override
+  String get description;
+  @override
+  DateTime get timestamp;
+  @override
+  @JsonKey(name: 'user_name')
+  String get userName;
+
+  /// Create a copy of ActivityLog
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$ActivityLogImplCopyWith<_$ActivityLogImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

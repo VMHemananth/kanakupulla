@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static ThemeData get lightTheme {
+  static ThemeData lightTheme(Color seedColor) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
+        seedColor: seedColor,
         brightness: Brightness.light,
       ),
       textTheme: GoogleFonts.interTextTheme(),
@@ -22,11 +22,11 @@ class AppTheme {
     );
   }
 
-  static ThemeData get darkTheme {
+  static ThemeData darkTheme(Color seedColor) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
+        seedColor: seedColor,
         brightness: Brightness.dark,
       ),
       textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
