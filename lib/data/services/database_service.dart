@@ -15,7 +15,7 @@ class DatabaseService {
     
     _db = await openDatabase(
       fullPath,
-      version: 15,
+      version: 16,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE expenses (
@@ -26,7 +26,8 @@ class DatabaseService {
             category TEXT,
             paymentMethod TEXT,
             creditCardId TEXT,
-            isCreditCardBill INTEGER DEFAULT 0
+            isCreditCardBill INTEGER DEFAULT 0,
+            savingsGoalId TEXT
           )
         ''');
         await db.execute('''
@@ -127,7 +128,8 @@ class DatabaseService {
             amount REAL,
             paid_by_member_id TEXT,
             date TEXT,
-            is_paid_from_pool INTEGER DEFAULT 0
+            is_paid_from_pool INTEGER DEFAULT 0,
+            type TEXT DEFAULT 'EXPENSE'
           )
         ''');
         await db.execute('''
@@ -145,6 +147,15 @@ class DatabaseService {
             member_id TEXT,
             amount REAL,
             date TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE group_activities (
+            id TEXT PRIMARY KEY,
+            group_id TEXT,
+            description TEXT,
+            timestamp TEXT,
+            user_name TEXT
           )
         ''');
         
@@ -334,6 +345,13 @@ class DatabaseService {
               user_name TEXT
             )
           ''');
+        }
+        if (oldVersion < 16) {
+          try {
+             await db.execute("ALTER TABLE expenses ADD COLUMN savingsGoalId TEXT");
+          } catch (e) {
+             // Ignore
+          }
         }
       },
     );

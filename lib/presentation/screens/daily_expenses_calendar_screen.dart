@@ -21,7 +21,7 @@ class _DailyExpensesCalendarScreenState extends ConsumerState<DailyExpensesCalen
   DateTime? _selectedDay;
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
-  RangeSelectionMode _rangeSelectionMode = RangeSelectionMode.toggledOn;
+  RangeSelectionMode _rangeSelectionMode = RangeSelectionMode.toggledOff;
 
   @override
   void initState() {
@@ -58,20 +58,20 @@ class _DailyExpensesCalendarScreenState extends ConsumerState<DailyExpensesCalen
       setState(() {
         _selectedDay = selectedDay;
         _focusedDay = focusedDay;
-        _rangeStart = null; // Clear range when single day selected
+        _rangeStart = null; 
         _rangeEnd = null;
-        _rangeSelectionMode = RangeSelectionMode.toggledOff;
+        _rangeSelectionMode = RangeSelectionMode.toggledOff; // Switch to single mode
       });
     }
   }
   
   void _onRangeSelected(DateTime? start, DateTime? end, DateTime focusedDay) {
     setState(() {
-      _selectedDay = null;
+      _selectedDay = null; // Clear single selection
       _focusedDay = focusedDay;
       _rangeStart = start;
       _rangeEnd = end;
-      _rangeSelectionMode = RangeSelectionMode.toggledOn;
+      _rangeSelectionMode = RangeSelectionMode.toggledOn; // Switch to range mode
     });
   }
 
@@ -131,7 +131,7 @@ class _DailyExpensesCalendarScreenState extends ConsumerState<DailyExpensesCalen
 
   @override
   Widget build(BuildContext context) {
-    final expensesAsync = ref.watch(expensesProvider);
+    final expensesAsync = ref.watch(allExpensesProvider);
 
     return Scaffold(
       appBar: AppBar(

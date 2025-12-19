@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/expense_provider.dart';
 import '../providers/salary_provider.dart';
+import '../providers/budget_provider.dart';
+import '../screens/income_list_screen.dart';
+import '../screens/manage_categories_and_budgets_screen.dart';
 
 class IncomeExpenseGauge extends ConsumerWidget {
   const IncomeExpenseGauge({super.key});
@@ -13,150 +16,236 @@ class IncomeExpenseGauge extends ConsumerWidget {
     final incomeAsync = ref.watch(salaryProvider);
 
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const Text(
-              'Spending Velocity', 
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 150,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  expensesAsync.when(
-                    data: (expenses) {
-                       final income = incomeAsync.value?.fold(0.0, (sum, i) => sum + i.amount) ?? 0.0;
-                       
-                       double totalExpense = 0;
-                       if (expenses.isNotEmpty) {
-                         totalExpense = expenses.fold(0.0, (sum, e) {
-                            if (e.paymentMethod == 'Credit Card' && !e.isCreditCardBill) return sum;
-                            return sum + e.amount;
-                         });
-                       }
+      elevation: 8,
+      margin: EdgeInsets.zero, // Dashboard padding handles it
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.grey[900]!,
+              Colors.blueGrey[900]!,
+            ],
+          ),
+        ),
+        padding: const EdgeInsets.all(24.0),
+        child: expensesAsync.when(
+          data: (expenses) {
+             final income = incomeAsync.value?.fold(0.0, (sum, i) => sum + i.amount) ?? 0.0;
+             
+             double totalExpense = 0;
+             if (expenses.isNotEmpty) {
+               totalExpense = expenses.fold(0.0, (sum, e) {
+                  if (e.paymentMethod == 'Credit Card' && !e.isCreditCardBill) return sum;
+                  return sum + e.amount;
+               });
+             }
 
-                       // If no income, gauge is meaningless or full red if expenses exist
-                       if (income == 0) {
-                         if (totalExpense > 0) {
-                           return _buildGauge(context, 100, 0, 100); // Maxed out red
-                         } else {
-                           return _buildGauge(context, 0, 100, 0); // Empty green
-                         }
-                       }
+             final balance = income - totalExpense;
+             
+             final budgetAsync = ref.watch(budgetProvider);
+             final budget = budgetAsync.value?.amount ?? 0.0;
+             final budgetPercentage = budget > 0 ? (totalExpense / budget).clamp(0.0, 1.0) : 0.0;
+             final budgetLeft = budget - totalExpense;
 
-                       final percentage = (totalExpense / income) * 100;
-                       
-                       // Determine Needle or Fill Position
-                       // Using a semi-circle pie chart to show "Zones"
-                       // And a pointer? Or just fill the pie up to the percentage?
-                       // User asked for "Green Zone: 0-50%, Yellow: 50-85%, Red: >85%"
-                       // Best approach: Background tracks showing zones, and a "needle" or a progress bar filling it.
-                       // Easier with PieChart: 
-                       // Section 1: Value = percentage (Color based on zone)
-                       // Section 2: Value = 100 - percentage (Grey)
-                       
-                       Color color;
-                       String label;
-                       if (percentage > 85) {
-                         color = Colors.red;
-                         label = 'Critical';
-                       } else if (percentage > 50) {
-                         color = Colors.orange;
-                         label = 'Caution';
-                       } else {
-                         color = Colors.green;
-                         label = 'Safe';
-                       }
+             return Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               children: [
+                 // 1. Total Balance Section
+                 const Text(
+                   'Total Balance', 
+                   style: TextStyle(color: Colors.white54, fontSize: 14, fontWeight: FontWeight.w500)
+                 ),
+                 const SizedBox(height: 8),
+                 Text(
+                   '₹${balance.toStringAsFixed(0)}',
+                   style: TextStyle(
+                     color: Colors.white, 
+                     fontSize: 32, 
+                     fontWeight: FontWeight.bold,
+                     letterSpacing: 1.0
+                   ),
+                 ),
+                 const SizedBox(height: 32),
 
-                       double value = percentage > 100 ? 100 : percentage;
-
-                       return Stack(
-                         alignment: Alignment.bottomCenter,
+                 // 2. Income & Expense Row
+                 Row(
+                   children: [
+                     // Income Column
+                     Expanded(
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
                          children: [
-                           PieChart(
-                             PieChartData(
-                               startDegreeOffset: 180,
-                               centerSpaceRadius: 0,
-                               sectionsSpace: 0,
-                               sections: [
-                                 // Active Part
-                                 PieChartSectionData(
-                                   value: value,
-                                   color: color,
-                                   radius: 60,
-                                   showTitle: false,
+                           Row(
+                             children: [
+                               Container(
+                                 padding: const EdgeInsets.all(4),
+                                 decoration: BoxDecoration(
+                                   color: Colors.green.withOpacity(0.2),
+                                   shape: BoxShape.circle
                                  ),
-                                 // Remaining Part
-                                 PieChartSectionData(
-                                   value: 100 - value,
-                                   color: Colors.grey.withOpacity(0.2),
-                                   radius: 60,
-                                   showTitle: false,
-                                 ),
-                                 // Invisible bottom half to force semi-circle shape
-                                 PieChartSectionData(
-                                   value: 100,
-                                   color: Colors.transparent,
-                                   radius: 60,
-                                   showTitle: false,
-                                 ),
-                               ],
-                             ),
+                                 child: const Icon(Icons.arrow_downward, color: Colors.green, size: 16),
+                               ),
+                               const SizedBox(width: 8),
+                               const Text('Income', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                             ],
                            ),
-                           // Cover the center to make it look like a gauge/donut
-                           Container(
-                              width: 80,
-                              height: 80,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                           ),
-                           // Overlay Text
-                           Padding(
-                             padding: const EdgeInsets.only(bottom: 20.0),
-                             child: Column(
-                               mainAxisSize: MainAxisSize.min,
-                               children: [
-                                 Text(
-                                   '${percentage.toStringAsFixed(0)}%', 
-                                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)
+                           const SizedBox(height: 8),
+                           income > 0 
+                           ? Material( // Interactive Edit Area
+                               color: Colors.transparent,
+                               child: InkWell(
+                                 onTap: () {
+                                    Navigator.push(context, MaterialPageRoute(builder: (c) => const IncomeListScreen()));
+                                 },
+                                 borderRadius: BorderRadius.circular(4),
+                                 child: Row(
+                                   mainAxisSize: MainAxisSize.min,
+                                   children: [
+                                     Text(
+                                       '₹${income >= 10000 ? '${(income/1000).toStringAsFixed(1)}k' : income.toStringAsFixed(0)}',
+                                       style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)
+                                     ),
+                                     const SizedBox(width: 4),
+                                     const Icon(Icons.edit, color: Colors.white24, size: 12),
+                                   ],
                                  ),
-                                 Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold)),
-                               ],
+                               ),
+                             )
+                           : OutlinedButton.icon( // Explicit Add Button
+                               onPressed: () {
+                                  Navigator.push(context, MaterialPageRoute(builder: (c) => const IncomeListScreen()));
+                               },
+                               icon: const Icon(Icons.add, size: 14, color: Colors.greenAccent),
+                               label: const Text('Add Income', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
+                               style: OutlinedButton.styleFrom(
+                                 side: BorderSide(color: Colors.greenAccent.withOpacity(0.5)),
+                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                 minimumSize: Size.zero,
+                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                               ),
                              ),
+                         ],
+                       ),
+                     ),
+                     
+                     // Expense Column 
+                     Expanded(
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Row(
+                             children: [
+                               Container(
+                                 padding: const EdgeInsets.all(4),
+                                 decoration: BoxDecoration(
+                                   color: Colors.red.withOpacity(0.2),
+                                   shape: BoxShape.circle
+                                 ),
+                                 child: const Icon(Icons.arrow_upward, color: Colors.red, size: 16),
+                               ),
+                               const SizedBox(width: 8),
+                               const Text('Expense', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                             ],
+                           ),
+                           const SizedBox(height: 8),
+                           Text(
+                             '₹${totalExpense >= 10000 ? '${(totalExpense/1000).toStringAsFixed(1)}k' : totalExpense.toStringAsFixed(0)}',
+                             style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)
                            ),
                          ],
-                       );
-                    },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (_, __) => const Text('Error'),
-                  ),
-                ],
-              ),
-            ),
-            // Zone Indicators
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                   Text('0%', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                   Text('50%', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                   Text('85%', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                   Text('100%+', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                ],
-              ),
-            ),
-          ],
+                       ),
+                     ),
+                   ],
+                 ),
+                 
+                 const SizedBox(height: 32),
+
+                 // 3. Monthly Budget Section
+                 if (budget > 0) ...[
+                   Row(
+                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                     children: [
+                       const Text('Monthly Budget', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                       InkWell(
+                         onTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (c) => const ManageCategoriesAndBudgetsScreen()));
+                         },
+                         borderRadius: BorderRadius.circular(4),
+                         child: Row(
+                           children: [
+                             Text(
+                               '${(budgetPercentage * 100).toStringAsFixed(0)}% used', 
+                               style: TextStyle(
+                                 color: budgetPercentage > 0.85 ? Colors.redAccent : Colors.white70, 
+                                 fontSize: 12, 
+                                 fontWeight: FontWeight.bold
+                               )
+                             ),
+                             const SizedBox(width: 4),
+                             const Icon(Icons.edit, size: 12, color: Colors.white24),
+                           ],
+                         ),
+                       ),
+                     ],
+                   ),
+                   const SizedBox(height: 8),
+                   ClipRRect(
+                     borderRadius: BorderRadius.circular(4),
+                     child: LinearProgressIndicator(
+                       value: budgetPercentage,
+                       minHeight: 6,
+                       backgroundColor: Colors.white10,
+                       valueColor: AlwaysStoppedAnimation<Color>(
+                         budgetPercentage > 0.85 ? Colors.redAccent : (budgetPercentage > 0.5 ? Colors.orangeAccent : Colors.greenAccent)
+                       ),
+                     ),
+                   ),
+                   const SizedBox(height: 8),
+                   Text(
+                     '₹${budgetLeft.toStringAsFixed(0)} left to spend',
+                     style: const TextStyle(color: Colors.white38, fontSize: 11),
+                   ),
+                 ] else ...[
+                    // Explicit Set Budget Button if 0
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                           Navigator.push(context, MaterialPageRoute(builder: (c) => const ManageCategoriesAndBudgetsScreen()));
+                        },
+                        icon: const Icon(Icons.account_balance_wallet, size: 16, color: Colors.purpleAccent),
+                        label: const Text('Set Monthly Budget', style: TextStyle(color: Colors.purpleAccent)),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.purpleAccent.withOpacity(0.5)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                      ),
+                    ),
+                 ],
+               ],
+             );
+          },
+          loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+          error: (_, __) => const Text('Error loading data', style: TextStyle(color: Colors.red)),
         ),
       ),
+    );
+  }
+  
+  Widget _buildStat(BuildContext context, String label, double amount, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(
+          '₹${amount >= 10000 ? '${(amount/1000).toStringAsFixed(1)}k' : amount.toStringAsFixed(0)}',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+        ),
+      ],
     );
   }
 

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/date_provider.dart';
 import '../providers/expense_provider.dart';
+import '../../data/services/sms_service.dart';
+import '../services/voice_expense_service.dart';
 import '../providers/user_provider.dart';
 import '../widgets/salary_card.dart';
 import '../widgets/budget_card.dart';
@@ -457,6 +459,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
       ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'voice_fab',
+            onPressed: () => _showVoiceInput(context, ref),
+            backgroundColor: Colors.indigoAccent,
+            child: const Icon(Icons.mic, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: 'add_fab',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
+              );
+            },
+            child: const Icon(Icons.add),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.refresh(expensesProvider);
@@ -502,6 +526,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               _buildInsightBanner(context, ref),
               const SizedBox(height: 16),
               _buildQuickActions(context),
+              const SizedBox(height: 16),
+              const CreditUsageCard(),
               const SizedBox(height: 16),
 
               // Prompts
@@ -577,31 +603,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ],
                 );
               }),
-              const CreditUsageCard(),
-              const SizedBox(height: 16),
-              const SalaryCard(),
-              const SizedBox(height: 16),
-              const BudgetCard(),
+              const ExpenseChart(), // Added Interactive Breakdown
               const SizedBox(height: 16),
               const WeeklySpendingChart(),
-              const SizedBox(height: 16),
-              // const SizedBox(height: 16), // duplicte removed
-              const ExpenseChart(),
               const SizedBox(height: 16),
               const RecentExpenses(),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => AddExpenseScreen(initialDate: date)),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
+
     );
   }
 
@@ -671,6 +682,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildInsightBanner(BuildContext context, WidgetRef ref) {
     final budgetAsync = ref.watch(budgetProvider);
     final expensesAsync = ref.watch(expensesProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
+    final now = DateTime.now();
     
     if (!budgetAsync.hasValue || !expensesAsync.hasValue || budgetAsync.value == null) {
       return const SizedBox.shrink();
@@ -678,41 +691,136 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final totalBudget = budgetAsync.value!;
     final totalExpense = expensesAsync.value!.fold(0.0, (sum, e) => sum + e.amount);
-    final percentage = (totalExpense / totalBudget.amount) * 100;
+    final remainingBudget = totalBudget.amount - totalExpense;
+    
+    bool isCurrentMonth = selectedDate.year == now.year && selectedDate.month == now.month;
 
-    String message = '';
-    Color color = Colors.green;
-    IconData icon = Icons.check_circle;
+    // Feature: Safe-to-Spend Pulse
+    if (isCurrentMonth) {
+        final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
+        final daysLeft = lastDayOfMonth - now.day;
+        
+        if (remainingBudget <= 0) {
+           return _buildInsightCard(
+             context, 
+             Icons.warning_amber_rounded, 
+             Colors.red, 
+             'Critical: Budget Exceeded',
+             'Try to curb spending for the rest of the month.',
+           );
+        }
 
-    if (percentage > 100) {
-      message = 'Alert: Budget exceeded by ${(percentage - 100).toStringAsFixed(0)}%!';
-      color = Colors.red;
-      icon = Icons.warning;
-    } else if (percentage > 85) {
-       message = 'Heads up: You used ${percentage.toStringAsFixed(0)}% of your budget.';
-       color = Colors.orange;
-       icon = Icons.info;
-    } else {
-       message = 'Good job! You are ${(100 - percentage).toStringAsFixed(0)}% under budget.';
-       color = Colors.green;
-       icon = Icons.thumb_up;
+        if (daysLeft <= 0) {
+           // Last day or logic edge case
+           return _buildInsightCard(
+             context, 
+             Icons.check_circle_outline, 
+             Colors.green, 
+             'Month End',
+             'You have ₹${remainingBudget.toStringAsFixed(0)} left!',
+           );
+        }
+
+        final dailyLimit = remainingBudget / daysLeft;
+        
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.indigo.shade900, Colors.purple.shade900],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: Colors.purple.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                   const Text('Safe to Spend', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                   Container(
+                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                     decoration: BoxDecoration(
+                       color: Colors.black26, 
+                       borderRadius: BorderRadius.circular(12)
+                     ),
+                     child: Text('$daysLeft days left', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                   )
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '₹${dailyLimit.toStringAsFixed(0)}', 
+                    style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 6.0, left: 4.0),
+                    child: Text('/ day', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'To stay within your budget of ₹${totalBudget.amount.toStringAsFixed(0)}',
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ],
+          ),
+        );
     }
 
+    // Fallback for Past Months (Generic Summary)
+    final percentage = (totalExpense / totalBudget.amount) * 100;
+    String title = '';
+    String subtitle = '';
+    Color color = Colors.green;
+    IconData icon = Icons.thumb_up;
+
+    if (percentage > 100) {
+      title = 'Budget Exceeded';
+      subtitle = 'You overshot by ${(percentage - 100).toStringAsFixed(0)}%.';
+      color = Colors.red;
+      icon = Icons.warning;
+    } else {
+      title = 'Under Budget';
+      subtitle = 'You saved ${(100 - percentage).toStringAsFixed(0)}% this month.';
+      color = Colors.green;
+      icon = Icons.thumb_up;
+    }
+
+    return _buildInsightCard(context, icon, color, title, subtitle);
+  }
+
+  Widget _buildInsightCard(BuildContext context, IconData icon, Color color, String title, String subtitle) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 20),
+          Icon(icon, color: color, size: 24),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: TextStyle(color: color, fontSize: 12)),
+              ],
             ),
           ),
         ],
@@ -738,6 +846,78 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         );
       }
     }
+  }
+
+  void _showVoiceInput(BuildContext context, WidgetRef ref) async {
+    final voiceService = ref.read(voiceExpenseServiceProvider);
+    
+    // Initialize & Check Permissions
+    bool available = await voiceService.initialize();
+    if (!available) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission denied or not available.')),
+        );
+      }
+      return;
+    }
+
+    String spokenText = "Listening...";
+    
+    // Show Listening Dialog
+    await showDialog(
+      context: context,
+      barrierDismissible: true, // Allow tapping out to cancel
+      builder: (dialogContext) {
+        // Start listening immediately
+        voiceService.listen(
+          onResult: (text) {
+             spokenText = text;
+          },
+        );
+
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.mic, size: 48, color: Colors.indigoAccent),
+              const SizedBox(height: 16),
+              const Text('Speak your expense...', style: TextStyle(fontSize: 18)),
+              const SizedBox(height: 8),
+              const Text('e.g., "Tea 20 rupees"', style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () async {
+                  await voiceService.stop();
+                  Navigator.pop(dialogContext); // Close listening dialog
+                  if (spokenText != "Listening..." && spokenText.isNotEmpty) {
+                    _processVoiceResult(context, ref, spokenText);
+                  }
+                },
+                child: const Text('Done'),
+              )
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _processVoiceResult(BuildContext context, WidgetRef ref, String text) {
+    print('Processing Voice Text: $text'); // Debug
+    final voiceService = ref.read(voiceExpenseServiceProvider);
+    final parsed = voiceService.parseExpense(text);
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddExpenseScreen(
+          initialAmount: parsed.amount > 0 ? parsed.amount : null,
+          initialTitle: parsed.title,
+          initialCategory: parsed.category != 'Miscellaneous' ? parsed.category : null,
+        ),
+      ),
+    );
   }
 
   Future<void> _generatePdf() async {

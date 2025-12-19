@@ -12,7 +12,15 @@ class CreditUsageCard extends ConsumerWidget {
   @override
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selectedDate = ref.watch(selectedDateProvider);
+    final now = DateTime.now();
     final expensesAsync = ref.watch(allExpensesProvider);
+    
+    // Requirement 2: "should not show in other months"
+    // Only show if selected month matches current real-world month
+    if (selectedDate.year != now.year || selectedDate.month != now.month) {
+      return const SizedBox.shrink();
+    }
 
     return expensesAsync.when(
       data: (expenses) {
@@ -24,28 +32,10 @@ class CreditUsageCard extends ConsumerWidget {
           DateTime startDate;
           
           if (card.lastBillGeneratedMonth != null) {
-             // If last bill was generated for "2023-11", it covers up to billing day of Nov.
-             // So we start counting from the day AFTER that cycle ended?
-             // Actually, simplest logic: find the date of the last bill cut-off.
-             // lastBillGeneratedMonth format: "YYYY-MM"
              try {
                final parts = card.lastBillGeneratedMonth!.split('-');
                final year = int.parse(parts[0]);
                final month = int.parse(parts[1]);
-               
-               // The bill for (year, month) covers expenses until:
-               // If bill is generated on Billing Day of Month M, it usually covers M-1 to M (depending on cycle).
-               // But our logic in CheckBills says we generate it after the cycle ends.
-               // Let's assume lastBillGeneratedMonth means "Bill for this month's cycle is done".
-               
-               // If we generated bill for Nov (2023-11), then the cycle ended on Nov [BillingDay].
-               // So we count expenses AFTER Nov [BillingDay].
-               // Start counting from: DateTime(year, month, card.billingDay).add(Duration(days: 1))?
-               // Wait, cycle is: [BillingDay of Prev Month] to [BillingDay-1 of Current Month].
-               // If we generated bill for "2023-11", it means we covered the cycle ending in Nov.
-               // The cycle ending in Nov is: Oct [BillingDay] to Nov [BillingDay-1].
-               // So we should start counting from Nov [BillingDay].
-               
                startDate = DateTime(year, month, card.billingDay);
              } catch (e) {
                startDate = DateTime(2000);
@@ -59,14 +49,10 @@ class CreditUsageCard extends ConsumerWidget {
             if (e.paymentMethod != 'Credit Card') return false;
             if (e.isCreditCardBill) return false;
             
-            // Check if expense is AFTER the last billed cycle start date
-            // Actually, we want expenses that haven't been billed yet.
-            // If startDate is 2000, all are unbilled.
-            // If startDate is Nov 5, we want expenses >= Nov 5.
-            
-            // Strict comparison: Date must be on or after startDate.
-            // (Use year/month/day comparison to be safe against time components if any)
-            return e.date.isAfter(startDate.subtract(const Duration(seconds: 1)));
+            // Must be after last bill start
+            if (!e.date.isAfter(startDate.subtract(const Duration(seconds: 1)))) return false;
+
+            return true;
           });
 
           for (var e in cardExpenses) {

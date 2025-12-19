@@ -20,6 +20,7 @@ class AddExpenseScreen extends ConsumerStatefulWidget {
   final DateTime? initialDate;
   final double? initialAmount;
   final String? initialTitle;
+  final String? initialCategory;
   final String? initialSavingsGoalId;
 
   const AddExpenseScreen({
@@ -28,6 +29,7 @@ class AddExpenseScreen extends ConsumerStatefulWidget {
     this.initialDate, 
     this.initialAmount, 
     this.initialTitle,
+    this.initialCategory,
     this.initialSavingsGoalId,
   });
 
@@ -65,6 +67,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _selectedCreditCardId = widget.expense!.creditCardId;
     } else {
       _selectedDate = widget.initialDate ?? DateTime.now();
+      _selectedCategory = widget.initialCategory;
       if (widget.initialSavingsGoalId != null) {
         _selectedCategory = 'Savings';
         _selectedSavingsGoalId = widget.initialSavingsGoalId;
@@ -433,6 +436,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         category: _selectedCategory!,
         paymentMethod: _paymentMethod,
         creditCardId: _selectedCreditCardId,
+        savingsGoalId: _selectedSavingsGoalId,
       );
 
       // Save Expense

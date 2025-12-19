@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/models/savings_goal_model.dart';
 import '../../data/repositories/expense_repository.dart';
 import 'date_provider.dart';
 import 'budget_provider.dart';
+import 'savings_provider.dart';
 import '../../data/services/notification_service.dart';
 
 final expensesProvider = StateNotifierProvider<ExpensesNotifier, AsyncValue<List<ExpenseModel>>>((ref) {
@@ -77,6 +79,25 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
 
   Future<void> deleteExpense(String id) async {
     try {
+      // Logic to revert savings if applicable
+      final allExpenses = _ref.read(allExpensesProvider).value ?? [];
+      final expenseToDelete = allExpenses.firstWhere((e) => e.id == id, orElse: () => 
+          state.value?.firstWhere((e) => e.id == id) as ExpenseModel // Fallback to current filtered state
+      );
+
+      // Using a 'try-catch' implicitly by accessing properties? No, enable safe access.
+      // If we found the expense and it has a savingsGoalId
+      if (expenseToDelete.savingsGoalId != null) {
+          final goals = _ref.read(savingsProvider).value ?? [];
+          try {
+             final goal = goals.firstWhere((g) => g.id == expenseToDelete.savingsGoalId);
+             final updatedGoal = goal.copyWith(currentAmount: goal.currentAmount - expenseToDelete.amount);
+             await _ref.read(savingsProvider.notifier).updateGoal(updatedGoal);
+          } catch (e) {
+             // Goal might be deleted already
+          }
+      }
+
       await _repository.deleteExpense(id);
       await loadExpenses();
       _ref.refresh(allExpensesProvider);
