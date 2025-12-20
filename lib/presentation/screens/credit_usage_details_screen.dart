@@ -83,6 +83,7 @@ class _CreditUsageDetailsScreenState extends ConsumerState<CreditUsageDetailsScr
                         return true;
                       } else if (isPreviousMonth) {
                         final lastDayOfSelectedMonth = DateTime(selectedDate.year, selectedDate.month + 1, 0).day;
+                        // Use clamping logic
                         final effectiveBillingDay = card.billingDay > lastDayOfSelectedMonth ? lastDayOfSelectedMonth : card.billingDay;
                         final billingDeadline = DateTime(selectedDate.year, selectedDate.month, effectiveBillingDay);
                         
@@ -307,8 +308,24 @@ class _CreditUsageDetailsScreenState extends ConsumerState<CreditUsageDetailsScr
       creditCardId: cardId, // Associate bill with card too? Maybe not needed for bill itself to track against usage, but good for context
     );
 
-    // 4. Save
+    // 4. Save Expense
     await ref.read(expensesProvider.notifier).addExpense(billExpense);
+
+    // 5. Update Credit Card "Last Bill Generated" to advance cycle
+    if (cardId != null) {
+       // Identify the billing month based on the selected Bill Date
+       // We assume the bill date typically corresponds to the month the bill is issued/paid
+       // which should close the cycle for that relative month.
+       final newLastBillMonth = DateFormat('yyyy-MM').format(date);
+       
+       final creditCards = ref.read(creditCardProvider).value ?? [];
+       final cardToUpdate = creditCards.firstWhere((c) => c.id == cardId, orElse: () => const CreditCardModel(id: '', name: '', billingDay: 1));
+       
+       if (cardToUpdate.id.isNotEmpty) {
+         final updatedCard = cardToUpdate.copyWith(lastBillGeneratedMonth: newLastBillMonth);
+         await ref.read(creditCardProvider.notifier).updateCreditCard(updatedCard);
+       }
+    }
     
     if (mounted) {
       setState(() {

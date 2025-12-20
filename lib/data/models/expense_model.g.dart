@@ -17,6 +17,7 @@ _$ExpenseModelImpl _$$ExpenseModelImplFromJson(Map<String, dynamic> json) =>
       creditCardId: json['creditCardId'] as String?,
       isCreditCardBill: json['isCreditCardBill'] as bool? ?? false,
       savingsGoalId: json['savingsGoalId'] as String?,
+      isNeed: json['isNeed'] as bool? ?? true,
     );
 
 Map<String, dynamic> _$$ExpenseModelImplToJson(_$ExpenseModelImpl instance) =>
@@ -30,4 +31,5 @@ Map<String, dynamic> _$$ExpenseModelImplToJson(_$ExpenseModelImpl instance) =>
       'creditCardId': instance.creditCardId,
       'isCreditCardBill': instance.isCreditCardBill,
       'savingsGoalId': instance.savingsGoalId,
+      'isNeed': instance.isNeed,
     };

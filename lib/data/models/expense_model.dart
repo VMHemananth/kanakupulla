@@ -15,6 +15,7 @@ class ExpenseModel with _$ExpenseModel {
     String? creditCardId,
     @Default(false) bool isCreditCardBill,
     String? savingsGoalId,
+    @Default(true) bool isNeed,
   }) = _ExpenseModel;
 
   factory ExpenseModel.fromJson(Map<String, dynamic> json) =>

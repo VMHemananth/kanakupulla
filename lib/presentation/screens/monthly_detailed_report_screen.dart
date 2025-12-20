@@ -43,24 +43,27 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
       final allExpenses = await expenseRepo.getExpenses();
       final allSalaries = await salaryRepo.getSalaries();
 
-      setState(() {
-        _expenses = allExpenses.where((e) => 
-          e.date.year == widget.year && e.date.month == widget.month
-        ).toList();
-        
-        _incomes = allSalaries.where((s) => 
-          s.date.year == widget.year && s.date.month == widget.month
-        ).toList();
-        
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _expenses = allExpenses.where((e) => 
+            e.date.year == widget.year && e.date.month == widget.month
+          ).toList();
+          
+          _incomes = allSalaries.where((s) => 
+            s.date.year == widget.year && s.date.month == widget.month
+          ).toList();
+          
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final monthName = DateFormat('MMMM yyyy').format(DateTime(widget.year, widget.month));
 
     return Scaffold(
@@ -68,6 +71,11 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
         title: Text(monthName),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: theme.colorScheme.primary,
+          unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+          indicatorColor: theme.colorScheme.primary,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold),
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Income'),
@@ -80,44 +88,50 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildOverviewTab(),
-                _buildIncomeTab(),
-                _buildExpenseTab(),
+                _buildOverviewTab(theme),
+                _buildIncomeTab(theme),
+                _buildExpenseTab(theme),
               ],
             ),
     );
   }
 
-  Widget _buildOverviewTab() {
+  Widget _buildOverviewTab(ThemeData theme) {
     double totalIncome = _incomes.fold(0, (sum, e) => sum + e.amount);
     double totalExpense = _expenses.fold(0, (sum, e) => sum + e.amount);
     double savings = totalIncome - totalExpense;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                   const Text('Net Savings', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                   const SizedBox(height: 8),
-                   Text(
-                     '₹${savings.toStringAsFixed(0)}',
-                     style: TextStyle(
-                       fontSize: 32, 
-                       fontWeight: FontWeight.bold,
-                       color: savings >= 0 ? Colors.green : Colors.red,
-                     ),
-                   ),
-                ],
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [theme.colorScheme.primaryContainer, theme.colorScheme.surface],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
+            ),
+            child: Column(
+              children: [
+                 Text('Net Savings', style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                 const SizedBox(height: 12),
+                 Text(
+                   '₹${savings.toStringAsFixed(0)}',
+                   style: theme.textTheme.displayMedium?.copyWith(
+                     fontWeight: FontWeight.bold,
+                     color: savings >= 0 ? Colors.green : theme.colorScheme.error,
+                   ),
+                 ),
+              ],
             ),
           ),
+          const SizedBox(height: 32),
+          Text('Income vs Expense', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 24),
           AspectRatio(
             aspectRatio: 1.3,
@@ -127,7 +141,13 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
                 maxY: (totalIncome > totalExpense ? totalIncome : totalExpense) * 1.2,
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
-                    tooltipBgColor: Colors.blueGrey,
+                    tooltipBgColor: theme.colorScheme.surfaceContainerHighest,
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      return BarTooltipItem(
+                        rod.toY.toStringAsFixed(0),
+                        TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold),
+                      );
+                    },
                   ),
                 ),
                 titlesData: FlTitlesData(
@@ -136,10 +156,15 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
                     sideTitles: SideTitles(
                       showTitles: true,
                       getTitlesWidget: (val, meta) {
-                        if (val == 0) return const Text('Income');
-                        if (val == 1) return const Text('Expense');
-                        return const Text('');
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            val == 0 ? 'Income' : (val == 1 ? 'Expense' : ''),
+                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        );
                       },
+                      reservedSize: 30,
                     ),
                   ),
                   leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -147,17 +172,38 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
+                gridData: FlGridData(show: false),
                 barGroups: [
                   BarChartGroupData(
                     x: 0,
                     barRods: [
-                      BarChartRodData(toY: totalIncome, color: Colors.green, width: 40, borderRadius: BorderRadius.circular(4))
+                      BarChartRodData(
+                        toY: totalIncome, 
+                        color: Colors.green, 
+                        width: 50, 
+                        borderRadius: BorderRadius.circular(12),
+                        backDrawRodData: BackgroundBarChartRodData(
+                          show: true,
+                          toY: (totalIncome > totalExpense ? totalIncome : totalExpense) * 1.2,
+                          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                        ),
+                      )
                     ],
                   ),
                   BarChartGroupData(
                     x: 1,
                     barRods: [
-                      BarChartRodData(toY: totalExpense, color: Colors.red, width: 40, borderRadius: BorderRadius.circular(4))
+                      BarChartRodData(
+                        toY: totalExpense, 
+                        color: theme.colorScheme.error, 
+                        width: 50, 
+                        borderRadius: BorderRadius.circular(12),
+                        backDrawRodData: BackgroundBarChartRodData(
+                          show: true,
+                          toY: (totalIncome > totalExpense ? totalIncome : totalExpense) * 1.2,
+                          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                        ),
+                      )
                     ],
                   ),
                 ],
@@ -169,9 +215,9 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
     );
   }
 
-  Widget _buildIncomeTab() {
+  Widget _buildIncomeTab(ThemeData theme) {
     if (_incomes.isEmpty) {
-      return const Center(child: Text('No income records for this month'));
+      return Center(child: Text('No income records for this month', style: TextStyle(color: theme.colorScheme.outline)));
     }
 
     // Group by Source
@@ -187,39 +233,56 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
 
     return Column(
       children: [
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         SizedBox(
-          height: 200,
+          height: 220,
           child: PieChart(
             PieChartData(
               sections: sortedEntries.map((e) {
-                final isTouched = false; // Simple version
+                final isTouched = false; 
+                final color = Colors.primaries[sortedEntries.indexOf(e) % Colors.primaries.length];
                 return PieChartSectionData(
                   value: e.value,
                   title: '${(e.value / total * 100).toStringAsFixed(0)}%',
-                  radius: 50,
-                  titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                  color: Colors.primaries[sortedEntries.indexOf(e) % Colors.primaries.length],
+                  radius: 60,
+                  titleStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                  color: color,
+                  badgeWidget: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+                    child: Text(e.key, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                  badgePositionPercentageOffset: 1.2,
                 );
               }).toList(),
-              sectionsSpace: 2,
-              centerSpaceRadius: 40,
+              sectionsSpace: 4,
+              centerSpaceRadius: 50,
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 32),
         Expanded(
-          child: ListView.builder(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             itemCount: sortedEntries.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final entry = sortedEntries[index];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.primaries[index % Colors.primaries.length],
-                  child: const Icon(Icons.attach_money, color: Colors.white, size: 16),
+              return Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: theme.colorScheme.outline.withOpacity(0.05)),
                 ),
-                title: Text(entry.key),
-                trailing: Text('₹${entry.value.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.primaries[index % Colors.primaries.length].withOpacity(0.2),
+                    child: Icon(Icons.attach_money, color: Colors.primaries[index % Colors.primaries.length], size: 20),
+                  ),
+                  title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  trailing: Text('₹${entry.value.toStringAsFixed(0)}', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                ),
               );
             },
           ),
@@ -228,9 +291,9 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
     );
   }
 
-  Widget _buildExpenseTab() {
+  Widget _buildExpenseTab(ThemeData theme) {
     if (_expenses.isEmpty) {
-      return const Center(child: Text('No expenses records for this month'));
+      return Center(child: Text('No expenses records for this month', style: TextStyle(color: theme.colorScheme.outline)));
     }
 
     // Group by Category
@@ -238,7 +301,6 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
     double total = 0;
     
     for (var e in _expenses) {
-       // Filter out credit card bills to avoid double counting if needed, or keep all
        // Assuming standard logic:
        if (e.paymentMethod == 'Credit Card' && !e.isCreditCardBill) continue; 
        
@@ -249,40 +311,55 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
     final sortedEntries = catTotals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
+    if (total == 0) {
+       return Center(child: Text('No valid expenses (e.g. only credit card usage)', style: TextStyle(color: theme.colorScheme.outline)));
+    }
+
     return Column(
       children: [
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         SizedBox(
-          height: 200,
+          height: 220,
           child: PieChart(
             PieChartData(
               sections: sortedEntries.map((e) {
                 return PieChartSectionData(
                   value: e.value,
                   title: '${(e.value / total * 100).toStringAsFixed(0)}%',
-                  radius: 50,
-                  titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                  radius: 60,
+                  titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                   color: CategoryColors.getColor(e.key),
                 );
               }).toList(),
               sectionsSpace: 2,
-              centerSpaceRadius: 40,
+              centerSpaceRadius: 50,
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 32),
         Expanded(
-          child: ListView.builder(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             itemCount: sortedEntries.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final entry = sortedEntries[index];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: CategoryColors.getColor(entry.key),
-                  radius: 16,
+              return Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: theme.colorScheme.outline.withOpacity(0.05)),
                 ),
-                title: Text(entry.key),
-                trailing: Text('₹${entry.value.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: CircleAvatar(
+                    backgroundColor: CategoryColors.getColor(entry.key).withOpacity(0.2),
+                    radius: 20,
+                    child: Text(entry.key.isNotEmpty ? entry.key[0] : '?', style: TextStyle(color: CategoryColors.getColor(entry.key), fontWeight: FontWeight.bold)),
+                  ),
+                  title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  trailing: Text('₹${entry.value.toStringAsFixed(0)}', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                ),
               );
             },
           ),

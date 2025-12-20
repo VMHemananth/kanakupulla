@@ -46,6 +46,7 @@ class CategoryBudgetListWidget extends ConsumerWidget {
                 final totalAllocated = budgets.fold(0.0, (sum, b) => sum + b.amount);
                 final monthlyLimit = monthlyBudgetAsync.value?.amount ?? 0.0;
                 final isOverAllocated = totalAllocated > monthlyLimit;
+                final remainingAllocatable = monthlyLimit - totalAllocated;
 
                 // Calculate spent amount per category
                 final spentMap = <String, double>{};
@@ -55,50 +56,75 @@ class CategoryBudgetListWidget extends ConsumerWidget {
 
                 return Column(
                   children: [
-                    // Summary Card
-                    Card(
+                    // Summary Card - Gradient Style
+                    Container(
                       margin: const EdgeInsets.all(16),
-                      color: isOverAllocated ? Colors.red[50] : Colors.blue[50],
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Monthly Limit', style: TextStyle(color: Colors.grey)),
-                                    Text('₹${monthlyLimit.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    const Text('Total Allocated', style: TextStyle(color: Colors.grey)),
-                                    Text(
-                                      '₹${totalAllocated.toStringAsFixed(0)}', 
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold, 
-                                        fontSize: 18,
-                                        color: isOverAllocated ? Colors.red : Colors.black,
-                                      )
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            if (isOverAllocated && monthlyLimit > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'Allocated budget exceeds monthly limit by ₹${(totalAllocated - monthlyLimit).toStringAsFixed(0)}',
-                                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                                ),
-                              ),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Theme.of(context).colorScheme.primary,
+                            Theme.of(context).colorScheme.tertiary, // Gradient from Indigo to Rose
                           ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                           BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5)),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Monthly Income Limit', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Text('₹${monthlyLimit.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.white)),
+                                ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+                                child: const Icon(Icons.account_balance, color: Colors.white),
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          const Divider(color: Colors.white24),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Allocated', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Text('₹${totalAllocated.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text('Available to Allocate', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Text('₹${remainingAllocatable.toStringAsFixed(0)}', 
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold, 
+                                      fontSize: 16, 
+                                      color: remainingAllocatable < 0 ? Theme.of(context).colorScheme.error : Colors.white
+                                    )
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                     
@@ -106,104 +132,155 @@ class CategoryBudgetListWidget extends ConsumerWidget {
                     if (budgets.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: ElevatedButton.icon(
+                        child: OutlinedButton.icon(
                           onPressed: () async {
                             await ref.read(categoryBudgetsProvider.notifier).copyBudgetsFromPreviousMonth();
                           }, 
-                          icon: const Icon(Icons.copy), 
-                          label: Text('Copy Budgets from ${DateFormat('MMMM').format(DateTime(date.year, date.month - 1))}'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.purple[50],
-                            foregroundColor: Colors.purple,
+                          icon: const Icon(Icons.copy, size: 16), 
+                          label: Text('Copy from ${DateFormat('MMMM').format(DateTime(date.year, date.month - 1))}'),
+                          style: OutlinedButton.styleFrom(
                             minimumSize: const Size(double.infinity, 45),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
 
                     Expanded(
-                      child: ListView.builder(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.only(bottom: 80),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemCount: categories.length,
                         itemBuilder: (context, index) {
                           final category = categories[index];
                           final budgetAmount = budgetMap[category.name];
                           final spentAmount = spentMap[category.name] ?? 0.0;
+                          final theme = Theme.of(context);
                           
                           if (budgetAmount == null) {
-                             return ListTile(
-                              leading: CircleAvatar(child: Text(category.name[0])),
-                              title: Text(category.name),
-                              subtitle: const Text('No budget set'),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.edit),
-                                onPressed: () => _showSetBudgetDialog(context, ref, category.name, null),
-                              ),
-                            );
+                             return Container(
+                               margin: const EdgeInsets.symmetric(horizontal: 16),
+                               decoration: BoxDecoration(
+                                 color: theme.colorScheme.surface,
+                                 borderRadius: BorderRadius.circular(16),
+                                 border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
+                               ),
+                               child: ListTile(
+                                 leading: CircleAvatar(
+                                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                                   child: Icon(Icons.category_outlined, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                                 ),
+                                 title: Text(category.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                 subtitle: const Text('No budget set', style: TextStyle(fontSize: 12)),
+                                 trailing: TextButton(
+                                   onPressed: () => _showSetBudgetDialog(context, ref, category.name, null),
+                                   child: const Text('Set'),
+                                 ),
+                               ),
+                             );
                           }
 
                           final progress = budgetAmount > 0 ? spentAmount / budgetAmount : (spentAmount > 0 ? 1.0 : 0.0);
                           final isOverBudget = progress > 1.0;
-                          final color = isOverBudget ? Colors.red : (progress > 0.8 ? Colors.orange : Colors.green);
+                          final cardColor = isOverBudget ? theme.colorScheme.errorContainer.withOpacity(0.3) : theme.colorScheme.surface;
+                          final progressColor = isOverBudget ? theme.colorScheme.error : (progress > 0.8 ? Colors.orange : theme.colorScheme.primary);
 
-                          return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                           CircleAvatar(
-                                             backgroundColor: color.withOpacity(0.1),
-                                             child: Icon(Icons.category, color: color, size: 20),
-                                           ),
-                                           const SizedBox(width: 12),
-                                           Text(category.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                        ],
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.edit, size: 20),
-                                        onPressed: () => _showSetBudgetDialog(context, ref, category.name, budgetAmount),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  LinearProgressIndicator(
-                                    value: progress > 1 ? 1 : progress,
-                                    backgroundColor: Colors.grey[200],
-                                    color: color,
-                                    minHeight: 10,
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Spent: ₹${spentAmount.toStringAsFixed(0)}',
-                                        style: TextStyle(color: color, fontWeight: FontWeight.w600),
-                                      ),
-                                      Text(
-                                        'Budget: ₹${budgetAmount.toStringAsFixed(0)}',
-                                        style: const TextStyle(color: Colors.grey),
-                                      ),
-                                    ],
-                                  ),
-                                  if (isOverBudget)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8.0),
-                                      child: Text(
-                                        'Over Budget by ₹${(spentAmount - budgetAmount).toStringAsFixed(0)}',
-                                        style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: cardColor,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                         CircleAvatar(
+                                           radius: 18,
+                                           backgroundColor: theme.colorScheme.primaryContainer,
+                                           child: Icon(Icons.category, color: theme.colorScheme.primary, size: 18),
+                                         ),
+                                         const SizedBox(width: 12),
+                                         Text(category.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                      ],
+                                    ),
+                                    InkWell(
+                                      onTap: () => _showSetBudgetDialog(context, ref, category.name, budgetAmount),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
+                                        child: const Icon(Icons.edit, size: 16),
                                       ),
                                     ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: LinearProgressIndicator(
+                                    value: progress > 1 ? 1 : progress,
+                                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                                    color: progressColor,
+                                    minHeight: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Spent', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+                                        Text(
+                                          '₹${spentAmount.toStringAsFixed(0)}',
+                                          style: TextStyle(color: progressColor, fontWeight: FontWeight.bold, fontSize: 16),
+                                        ),
+                                      ],
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text('Budget', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+                                        Text(
+                                          '₹${budgetAmount.toStringAsFixed(0)}',
+                                          style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 16),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                if (isOverBudget)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12.0),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.error.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.warning_amber_rounded, size: 16, color: theme.colorScheme.error),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Exceeded by ₹${(spentAmount - budgetAmount).toStringAsFixed(0)}',
+                                            style: TextStyle(color: theme.colorScheme.error, fontSize: 12, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           );
                         },

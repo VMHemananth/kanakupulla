@@ -29,8 +29,7 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
       // Filter by selected month/year
       final filtered = allExpenses.where((e) => 
         e.date.year == _date.year && 
-        e.date.month == _date.month &&
-        !((e.paymentMethod == 'Credit Card') && !e.isCreditCardBill)
+        e.date.month == _date.month
       ).toList();
       state = AsyncValue.data(filtered);
     } catch (e, st) {
@@ -47,7 +46,7 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
       // Check budget
       final budget = _ref.read(budgetProvider).value;
       if (budget != null) {
-        final totalExpenses = state.value?.fold(0.0, (sum, e) => sum! + e.amount) ?? 0.0;
+        final totalExpenses = state.value?.fold(0.0, (sum, e) => sum! + (e.isCreditCardBill ? 0 : e.amount)) ?? 0.0;
         final percentage = totalExpenses / budget.amount;
         
         if (percentage >= 1.0) {

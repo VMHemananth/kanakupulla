@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../core/theme/app_theme.dart';
 import '../providers/expense_provider.dart';
 
 class WeeklySpendingChart extends ConsumerWidget {
@@ -10,44 +11,64 @@ class WeeklySpendingChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expensesAsync = ref.watch(expensesProvider);
+    final theme = Theme.of(context);
+
+    // Define colors from AppTheme or fallbacks
+    final cashColor = AppTheme.secondaryColor; // Teal
+    final creditColor = AppTheme.tertiaryColor; // Rose
 
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      color: theme.colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.bar_chart, color: Colors.purple),
-                ),
-                const SizedBox(width: 12),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(
-                      'Last 7 Days', 
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.show_chart_rounded, color: theme.colorScheme.primary, size: 20),
                     ),
-                    Text(
-                      'Spending Trend', 
-                      style: TextStyle(fontSize: 12, color: Colors.grey)
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Last 7 Days', 
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+                        ),
+                        Text(
+                          'Spending Trend', 
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)
+                        ),
+                      ],
                     ),
+                  ],
+                ),
+                // Legend
+                Row(
+                  children: [
+                    _buildLegendDot(cashColor, 'Cash'),
+                    const SizedBox(width: 12),
+                    _buildLegendDot(creditColor, 'Credit'),
                   ],
                 ),
               ],
             ),
             const SizedBox(height: 24),
             SizedBox(
-              height: 180,
+              height: 200,
               child: expensesAsync.when(
                 data: (expenses) {
                   final now = DateTime.now();
@@ -60,58 +81,84 @@ class WeeklySpendingChart extends ConsumerWidget {
                   });
 
                   // 2. Aggregate Expenses
-                  final dailyTotals = <int, double>{};
+                  final dailyCash = <int, double>{};
+                  final dailyCredit = <int, double>{};
                   double maxSpend = 0;
 
                   for (var e in expenses) {
                      // Check if expense date is within last 7 days range
-                     // Normalize dates to ignore time
                      final eDate = DateTime(e.date.year, e.date.month, e.date.day);
                      if (!eDate.isBefore(days.first) && !eDate.isAfter(days.last)) {
-                        // Find index (0 to 6)
+                        if (e.isCreditCardBill) continue; // Skip bill payments
                         final diff = eDate.difference(days.first).inDays;
                         if (diff >= 0 && diff < 7) {
-                          dailyTotals[diff] = (dailyTotals[diff] ?? 0) + e.amount;
-                          if (dailyTotals[diff]! > maxSpend) {
-                            maxSpend = dailyTotals[diff]!;
+                          if (e.paymentMethod == 'Credit Card') {
+                            dailyCredit[diff] = (dailyCredit[diff] ?? 0) + e.amount;
+                          } else {
+                            dailyCash[diff] = (dailyCash[diff] ?? 0) + e.amount;
+                          }
+                          
+                          final totalForDay = (dailyCash[diff] ?? 0) + (dailyCredit[diff] ?? 0);
+                          if (totalForDay > maxSpend) {
+                            maxSpend = totalForDay;
                           }
                         }
                      }
                   }
 
-                  if (maxSpend == 0) maxSpend = 100; // Avoid division by zero
+                  if (maxSpend == 0) maxSpend = 100;
 
-                  return BarChart(
-                    BarChartData(
-                      alignment: BarChartAlignment.spaceAround,
-                      maxY: maxSpend * 1.2,
-                      barTouchData: BarTouchData(
-                        touchTooltipData: BarTouchTooltipData(
-                           tooltipBgColor: Colors.purpleAccent,
-                           getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                             return BarTooltipItem(
-                               '₹${rod.toY.toStringAsFixed(0)}',
-                               const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                             );
+                  // Create Spots
+                  final cashSpots = <FlSpot>[];
+                  final creditSpots = <FlSpot>[];
+
+                  for (int i = 0; i < 7; i++) {
+                    cashSpots.add(FlSpot(i.toDouble(), dailyCash[i] ?? 0));
+                    creditSpots.add(FlSpot(i.toDouble(), dailyCredit[i] ?? 0));
+                  }
+
+                  return LineChart(
+                    LineChartData(
+                      minY: 0,
+                      maxY: maxSpend * 1.1, // Add buffer
+                      lineTouchData: LineTouchData(
+                        touchTooltipData: LineTouchTooltipData(
+                           tooltipBgColor: theme.colorScheme.surfaceContainerHighest,
+                           getTooltipItems: (touchedSpots) {
+                             return touchedSpots.map((spot) {
+                               final isCredit = spot.barIndex == 1; // Credit is added second
+                               return LineTooltipItem(
+                                 '${isCredit ? "Credit" : "Cash"}\n₹${spot.y.toStringAsFixed(0)}',
+                                 TextStyle(
+                                   color: isCredit ? creditColor : cashColor, 
+                                   fontWeight: FontWeight.bold,
+                                   fontSize: 12,
+                                 ),
+                               );
+                             }).toList();
                            },
                         ),
+                        handleBuiltInTouches: true,
                       ),
                       titlesData: FlTitlesData(
                         show: true,
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
+                            interval: 1,
                             getTitlesWidget: (double value, TitleMeta meta) {
                               final index = value.toInt();
                               if (index < 0 || index >= 7) return const SizedBox.shrink();
                               final date = days[index];
+                              final isToday = index == 6;
                               return Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
+                                padding: const EdgeInsets.only(top: 12.0),
                                 child: Text(
-                                  DateFormat('E').format(date)[0], // M, T, W...
+                                  DateFormat('E').format(date)[0], 
                                   style: TextStyle(
-                                    color: index == 6 ? Colors.purple : Colors.grey,
-                                    fontWeight: index == 6 ? FontWeight.bold : FontWeight.normal,
+                                    color: isToday ? theme.colorScheme.primary : theme.colorScheme.outline,
+                                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 12,
                                   ),
                                 ),
                               );
@@ -122,27 +169,75 @@ class WeeklySpendingChart extends ConsumerWidget {
                         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                         rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                       ),
-                      gridData: const FlGridData(show: false),
+                      gridData: FlGridData(
+                        show: true, 
+                        drawVerticalLine: false,
+                        horizontalInterval: maxSpend / 4,
+                        getDrawingHorizontalLine: (value) => FlLine(
+                          color: theme.colorScheme.outlineVariant.withOpacity(0.5), 
+                          strokeWidth: 1,
+                          dashArray: [4, 4],
+                        ),
+                      ),
                       borderData: FlBorderData(show: false),
-                      barGroups: List.generate(7, (index) {
-                        final amount = dailyTotals[index] ?? 0;
-                        return BarChartGroupData(
-                          x: index,
-                          barRods: [
-                            BarChartRodData(
-                              toY: amount,
-                              color: index == 6 ? Colors.purple : Colors.purple.shade200,
-                              width: 16,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                              backDrawRodData: BackgroundBarChartRodData(
-                                show: true,
-                                toY: maxSpend * 1.2,
-                                color: Colors.grey.withOpacity(0.1),
-                              ), 
+                      lineBarsData: [
+                        // Cash Line
+                        LineChartBarData(
+                          spots: cashSpots,
+                          isCurved: true,
+                          curveSmoothness: 0.35,
+                          color: cashColor,
+                          barWidth: 3,
+                          isStrokeCapRound: true,
+                          preventCurveOverShooting: true,
+                          dotData: FlDotData(
+                            show: true,
+                            getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                              radius: 4,
+                              color: theme.colorScheme.surface,
+                              strokeWidth: 2,
+                              strokeColor: cashColor,
                             ),
-                          ],
-                        );
-                      }),
+                            checkToShowDot: (spot, barData) => spot.x == 6, // Only show for today
+                          ),
+                          belowBarData: BarAreaData(
+                            show: true, 
+                            gradient: LinearGradient(
+                              colors: [cashColor.withOpacity(0.2), cashColor.withOpacity(0.0)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            )
+                          ),
+                        ),
+                        // Credit Line
+                        LineChartBarData(
+                          spots: creditSpots,
+                          isCurved: true,
+                          curveSmoothness: 0.35,
+                          color: creditColor,
+                          barWidth: 3,
+                          isStrokeCapRound: true,
+                          preventCurveOverShooting: true,
+                          dotData: FlDotData(
+                            show: true,
+                            getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                              radius: 4,
+                              color: theme.colorScheme.surface,
+                              strokeWidth: 2,
+                              strokeColor: creditColor,
+                            ),
+                            checkToShowDot: (spot, barData) => spot.x == 6, // Only show for today
+                          ),
+                          belowBarData: BarAreaData(
+                            show: true, 
+                             gradient: LinearGradient(
+                              colors: [creditColor.withOpacity(0.2), creditColor.withOpacity(0.0)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            )
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -155,4 +250,22 @@ class WeeklySpendingChart extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _buildLegendDot(Color color, String label) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
 }
+

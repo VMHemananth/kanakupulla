@@ -348,15 +348,19 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(yearlyStatsProvider(_selectedYear));
     final allExpensesAsync = ref.watch(allExpensesProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Yearly Financial Overview'),
-        centerTitle: true,
+        title: Text(
+          'Yearly Overview', 
+          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)
+        ),
+        centerTitle: false,
         actions: [
           statsAsync.when(
             data: (stats) => IconButton(
-              icon: const Icon(Icons.print),
+              icon: Icon(Icons.picture_as_pdf_rounded, color: theme.colorScheme.primary),
               tooltip: 'Export PDF',
               onPressed: () => _generatePdf(stats),
             ),
@@ -369,31 +373,42 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
         children: [
           // Year Selector
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios),
-                  onPressed: () {
-                    setState(() {
-                      _selectedYear--;
-                    });
-                  },
-                ),
-                Text(
-                  '$_selectedYear',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios),
-                  onPressed: () {
-                    setState(() {
-                      _selectedYear++;
-                    });
-                  },
-                ),
-              ],
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    onPressed: () {
+                      setState(() {
+                        _selectedYear--;
+                      });
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      '$_selectedYear',
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    onPressed: () {
+                      setState(() {
+                        _selectedYear++;
+                      });
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
           
@@ -410,165 +425,200 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
                 }
                 double totalSaved = totalIncome - totalExpense;
 
-                return Column(
+                return ListView( // Changed to ListView for better scrolling if content overflows
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   children: [
                     // Yearly Summary Card
-                    Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      elevation: 4,
-                      color: Colors.blueAccent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'YEARLY SUMMARY',
-                              style: TextStyle(color: Colors.white70, letterSpacing: 1.2, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                Column(
-                                  children: [
-                                    const Text('Money In', style: TextStyle(color: Colors.white70)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '₹${totalIncome.toStringAsFixed(0)}',
-                                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                                Container(height: 40, width: 1, color: Colors.white24),
-                                Column(
-                                  children: [
-                                    const Text('Money Out', style: TextStyle(color: Colors.white70)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '₹${totalExpense.toStringAsFixed(0)}',
-                                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(color: Colors.white24),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Total Saved: ₹${totalSaved.toStringAsFixed(0)}',
-                              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              totalSaved >= 0 
-                                ? 'Great job! You are in the green.' 
-                                : 'Warning: Expenses exceeded income.',
-                              style: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic),
-                            ),
-                          ],
+                     Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withOpacity(0.3),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'NET SAVINGS',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: Colors.white.withOpacity(0.8), 
+                              letterSpacing: 1.2, 
+                              fontWeight: FontWeight.bold
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '₹${totalSaved.toStringAsFixed(0)}',
+                            style: theme.textTheme.displayMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+                                        child: const Icon(Icons.arrow_downward_rounded, color: Colors.greenAccent, size: 16)
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text('Income', style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.8))),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '₹${totalIncome.toStringAsFixed(0)}',
+                                    style: theme.textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                              Container(height: 40, width: 1, color: Colors.white.withOpacity(0.2)),
+                              Column(
+                                children: [
+                                   Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+                                        child: const Icon(Icons.arrow_upward_rounded, color: Colors.redAccent, size: 16)
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text('Expense', style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.8))),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '₹${totalExpense.toStringAsFixed(0)}',
+                                    style: theme.textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     
                     // NEW: Inflation/Lifestyle Watch
                     if (allExpensesAsync.value != null && allExpensesAsync.value!.isNotEmpty)
                       _buildInflationWatch(stats, allExpensesAsync.value!),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     
+                    Text('Monthly Breakdown', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+
                     // Monthly List
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: stats.length,
-                        itemBuilder: (context, index) {
-                          final stat = stats[index];
-                          final monthName = DateFormat('MMMM').format(DateTime(_selectedYear, stat.month));
-                          final isSaved = stat.balance >= 0;
-                          final percentage = stat.income > 0 ? (stat.expense / stat.income) : (stat.expense > 0 ? 1.0 : 0.0);
-                          
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => MonthlyDetailedReportScreen(
-                                      month: stat.month,
-                                      year: _selectedYear,
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: stats.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final stat = stats[index];
+                        final monthName = DateFormat('MMMM').format(DateTime(_selectedYear, stat.month));
+                        final isSaved = stat.balance >= 0;
+                        final percentage = stat.income > 0 ? (stat.expense / stat.income) : (stat.expense > 0 ? 1.0 : 0.0);
+                        
+                        return Container( // Replaced Card with Container for cleaner look
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: theme.colorScheme.outline.withOpacity(0.05)),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                            ]
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MonthlyDetailedReportScreen(
+                                    month: stat.month,
+                                    year: _selectedYear,
+                                  ),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(20.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        monthName,
+                                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: isSaved ? Colors.green.withOpacity(0.1) : theme.colorScheme.error.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          isSaved ? '+ ₹${stat.balance.toStringAsFixed(0)}' : '- ₹${stat.balance.abs().toStringAsFixed(0)}',
+                                          style: TextStyle(
+                                            color: isSaved ? Colors.green[700] : theme.colorScheme.error,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text('Income: ₹${stat.income.toStringAsFixed(0)}', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                                      Text('Spent: ₹${stat.expense.toStringAsFixed(0)}', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: percentage > 1 ? 1 : percentage,
+                                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        percentage > 1 ? theme.colorScheme.error : (percentage > 0.8 ? Colors.orangeAccent : Colors.greenAccent),
+                                      ),
+                                      minHeight: 8,
                                     ),
                                   ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          monthName,
-                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: isSaved ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            isSaved ? 'Saved ₹${stat.balance.toStringAsFixed(0)}' : 'Overspent ₹${stat.balance.abs().toStringAsFixed(0)}',
-                                            style: TextStyle(
-                                              color: isSaved ? Colors.green[700] : Colors.red[700],
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text('Income: ₹${stat.income.toStringAsFixed(0)}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                                        Text('Spent: ₹${stat.expense.toStringAsFixed(0)}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(4),
-                                      child: LinearProgressIndicator(
-                                        value: percentage > 1 ? 1 : percentage,
-                                        backgroundColor: Colors.green.withValues(alpha: 0.2),
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          percentage > 1 ? Colors.red : (percentage > 0.8 ? Colors.orange : Colors.green),
-                                        ),
-                                        minHeight: 8,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                ],
                               ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
+                    const SizedBox(height: 40),
                   ],
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error loading data: $e')),
+              error: (e, _) => Center(child: Text('Error loading data: $e', style: TextStyle(color: theme.colorScheme.error))),
             ),
           ),
         ],
@@ -577,6 +627,7 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
   }
 
   Widget _buildInflationWatch(List<MonthlyStat> stats, List<dynamic> allExpenses) {
+    final theme = Theme.of(context);
     // Filter expenses for current year
     final expenses = allExpenses.where((e) => e.date.year == _selectedYear).toList();
     if (expenses.isEmpty) return const SizedBox.shrink();
@@ -586,46 +637,41 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
     
     // Check if we have enough data (need at least 3 months for reliable trend)
     if (months.length < 3) {
-      return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        color: Colors.grey.shade100,
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-             children: [
-               Icon(Icons.info_outline, color: Colors.grey.shade600),
-               const SizedBox(width: 8),
-               Expanded(
-                 child: Text(
-                   'Inflation Watch requires at least 3 months of data to detect trends.',
-                   style: TextStyle(color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 0),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+           children: [
+             Icon(Icons.info_outline_rounded, color: theme.colorScheme.onSurfaceVariant),
+             const SizedBox(width: 8),
+             Expanded(
+               child: Text(
+                 'Inflation Watch requires at least 3 months of data to detect trends.',
+                 style: theme.textTheme.bodyMedium?.copyWith(
+                   color: theme.colorScheme.onSurfaceVariant, 
+                   fontStyle: FontStyle.italic
                  ),
                ),
-             ],
-          ),
+             ),
+           ],
         ),
       );
     }
 
     // Logic: Compare Avg Spend of [first 3 available months] vs [last 3 available months]
-    // User requested "first 3 months vs last 3 months".
     
     final earlyMonths = months.take(3).toList();
     final lateMonths = months.reversed.take(3).toList(); // Last 3, reversed order (latest first)
 
     double getAvgForCategory(List<int> targetMonths, String category) {
       double total = 0;
-      int methodCount = 0;
       for (var m in targetMonths) {
         final monthlyExp = expenses.where((e) => e.date.month == m && e.category == category);
-        // Sum expenses for that category in that month
         final sum = monthlyExp.fold(0.0, (s, e) => s + e.amount);
-        // Only count months where there was ANY spending? 
-        // Or count all months in period? 
-        // Better to avg over the period length to catch "new" regular expenses vs "occasional".
-        // If we divide by targetMonths.length, it reflects "monthly average over the period".
         total += sum;
       }
       return targetMonths.isEmpty ? 0 : total / targetMonths.length;
@@ -656,82 +702,81 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
     }
 
     if (alerts.isEmpty) {
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          color: Colors.green.shade50,
-          elevation: 1,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-               children: [
-                 Icon(Icons.check_circle_outline, color: Colors.green.shade700),
-                 const SizedBox(width: 8),
-                 Expanded(
-                   child: Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Text('Lifestyle Watch', style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold)),
-                       Text(
-                         'Great! No significant spending increases detected across the year.',
-                         style: TextStyle(color: Colors.green.shade700),
-                       ),
-                     ],
-                   ),
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.green.withOpacity(0.1)),
+          ),
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+             children: [
+               const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
+               const SizedBox(width: 12),
+               Expanded(
+                 child: Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     Text('Lifestyle Watch', style: theme.textTheme.titleSmall?.copyWith(color: Colors.green[800], fontWeight: FontWeight.bold)),
+                     const SizedBox(height: 2),
+                     Text(
+                       'Great! No significant spending increases detected.',
+                       style: theme.textTheme.bodyMedium?.copyWith(color: Colors.green[700]),
+                     ),
+                   ],
                  ),
-               ],
-            ),
+               ),
+             ],
           ),
         );
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      color: Colors.orange.shade50,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-             Row(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.withOpacity(0.1)),
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+           Row(
+             children: [
+               Icon(Icons.trending_up, color: Colors.orange[800]),
+               const SizedBox(width: 12),
+               Text('Inflation & Lifestyle Watch', style: theme.textTheme.titleMedium?.copyWith(color: Colors.orange[800], fontWeight: FontWeight.bold)),
+             ],
+           ),
+           const SizedBox(height: 12),
+           Text(
+             'Comparing average spending of the first 3 months vs last 3 months:', 
+             style: theme.textTheme.bodySmall?.copyWith(color: Colors.orange[900]),
+           ),
+           const SizedBox(height: 12),
+           ...alerts.map((alert) => Padding(
+             padding: const EdgeInsets.only(bottom: 8.0),
+             child: Row(
+               crossAxisAlignment: CrossAxisAlignment.start,
                children: [
-                 Icon(Icons.trending_up, color: Colors.orange.shade900),
-                 const SizedBox(width: 8),
-                 Text('Inflation & Lifestyle Watch', style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 16)),
-               ],
-             ),
-             const SizedBox(height: 12),
-             Text(
-               'Comparing average spending of the first 3 months vs last 3 months:', 
-               style: TextStyle(fontSize: 12, color: Colors.orange.shade900.withOpacity(0.8)),
-             ),
-             const SizedBox(height: 8),
-             ...alerts.map((alert) => Padding(
-               padding: const EdgeInsets.only(bottom: 8.0),
-               child: Row(
-                 crossAxisAlignment: CrossAxisAlignment.start,
-                 children: [
-                   const Icon(Icons.arrow_right, color: Colors.red, size: 20),
-                   Expanded(
-                     child: RichText(
-                       text: TextSpan(
-                         style: const TextStyle(color: Colors.black87),
-                         children: [
-                           TextSpan(text: '${alert['category']} ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                           const TextSpan(text: 'rose by '),
-                           TextSpan(text: '${alert['pct'].toStringAsFixed(0)}%', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                           TextSpan(text: ' (₹${alert['early'].toStringAsFixed(0)} → ₹${alert['late'].toStringAsFixed(0)})'),
-                         ],
-                       ),
+                 Icon(Icons.arrow_right_rounded, color: theme.colorScheme.error, size: 20),
+                 Expanded(
+                   child: RichText(
+                     text: TextSpan(
+                       style: theme.textTheme.bodyMedium,
+                       children: [
+                         TextSpan(text: '${alert['category']} ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                         const TextSpan(text: 'rose by '),
+                         TextSpan(text: '${alert['pct'].toStringAsFixed(0)}%', style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.bold)),
+                         TextSpan(text: ' (₹${alert['early'].toStringAsFixed(0)} → ₹${alert['late'].toStringAsFixed(0)})', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                       ],
                      ),
                    ),
-                 ],
-               ),
-             )),
-          ],
-        ),
+                 ),
+               ],
+             ),
+           )),
+        ],
       ),
     );
   }

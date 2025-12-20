@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/models/category_model.dart';
 import '../../data/models/savings_goal_model.dart';
 import '../providers/expense_provider.dart';
 import '../providers/user_provider.dart';
@@ -14,6 +15,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/utils/voice_parser.dart';
+import '../../core/theme/app_theme.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
   final ExpenseModel? expense; // Keep for editing existing expenses
@@ -46,6 +48,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   String? _paymentMethod = 'Cash'; // Default
   String? _selectedCreditCardId;
   String? _selectedSavingsGoalId;
+
   
   late stt.SpeechToText _speech;
   bool _isListening = false;
@@ -65,6 +68,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _selectedCategory = widget.expense!.category;
       _paymentMethod = widget.expense!.paymentMethod ?? 'Cash';
       _selectedCreditCardId = widget.expense!.creditCardId;
+      _selectedSavingsGoalId = widget.expense!.savingsGoalId;
     } else {
       _selectedDate = widget.initialDate ?? DateTime.now();
       _selectedCategory = widget.initialCategory;
@@ -152,6 +156,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       SnackBar(
         content: Text('Parsed: Title="${result.title}", Cat="${result.category}", Amt="${result.amount}"'),
         backgroundColor: Colors.teal,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -163,7 +169,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              leading: const Icon(Icons.camera_alt_rounded),
               title: const Text('Take Photo'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -171,7 +177,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              leading: const Icon(Icons.photo_library_rounded),
               title: const Text('Choose from Gallery'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -222,7 +228,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Scanned: ${result['merchant']}, ₹${result['amount']}')),
+            SnackBar(
+              content: Text('Scanned: ${result['merchant']}, ₹${result['amount']}'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
           );
         }
       }
@@ -239,74 +249,105 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoryProvider);
     final categories = categoriesAsync.value?.map((e) => e.name).toList() ?? [];
+    final theme = Theme.of(context);
 
     // Ensure state category is valid or reset
     if (_selectedCategory != null && !categories.contains(_selectedCategory) && _selectedCategory != 'Savings') {
-       // If category was deleted or invalid, and it's not our special 'Savings' case if handled manually (though usually 'Savings' should be in list)
-       // Checks if 'Savings' is in categories list. If not, it might be an issue if we force it.
-       // Assuming 'Savings' is a valid category that exists.
+       // Assuming 'Savings' is a valid category that exists logic maintained from original code
     }
+
+    final inputDecoration = InputDecoration(
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      filled: true,
+      fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      labelStyle: const TextStyle(fontWeight: FontWeight.w500),
+    );
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.expense == null ? 'Add Expense' : 'Edit Expense'),
+        title: Text(
+          widget.expense == null ? 'New Expense' : 'Edit Expense',
+          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.camera_alt),
+           IconButton(
+            icon: Icon(Icons.camera_alt_rounded, color: theme.colorScheme.primary),
             tooltip: 'Scan Receipt',
             onPressed: _scanReceipt,
+            style: IconButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+            ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Amount Input
+              TextFormField(
+                controller: _amountController,
+                style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  hintText: '₹0',
+                  hintStyle: theme.textTheme.displaySmall?.copyWith(color: theme.colorScheme.outline.withOpacity(0.5)),
+                  border: InputBorder.none,
+                  prefixText: '₹ ',
+                  prefixStyle: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Enter amount';
+                  final amount = double.tryParse(value);
+                  if (amount == null || amount <= 0) return 'Invalid amount';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // Title and Voice
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
                       controller: _titleController,
-                      decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+                      decoration: inputDecoration.copyWith(labelText: 'What is this for?', prefixIcon: const Icon(Icons.edit_note_rounded)),
                       validator: (value) => value == null || value.isEmpty ? 'Please enter a title' : null,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onLongPress: _listen, // Alternative interaction
-                    child: IconButton(
-                      onPressed: _listen,
-                      icon: Icon(_isListening ? Icons.mic : Icons.mic_none),
-                      color: _isListening ? Colors.red : Colors.grey,
-                      style: IconButton.styleFrom(
-                        backgroundColor: _isListening ? Colors.red.withOpacity(0.1) : null,
+                  const SizedBox(width: 12),
+                  InkWell(
+                    onTap: _listen,
+                    onLongPress: _listen,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: _isListening ? Colors.redAccent : theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        _isListening ? Icons.mic : Icons.mic_rounded,
+                        color: _isListening ? Colors.white : theme.colorScheme.primary,
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _amountController,
-                decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter an amount';
-                  }
-                  final amount = double.tryParse(value);
-                  if (amount == null || amount <= 0) {
-                    return 'Please enter a valid amount > 0';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+
+              // Category
               DropdownButtonFormField<String>(
                 value: categories.contains(_selectedCategory) ? _selectedCategory : null,
-                decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                decoration: inputDecoration.copyWith(labelText: 'Category', prefixIcon: const Icon(Icons.category_rounded)),
+                dropdownColor: theme.colorScheme.surfaceContainer,
                 items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                 onChanged: (val) => setState(() {
                   _selectedCategory = val;
@@ -314,8 +355,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     _selectedSavingsGoalId = null;
                   }
                 }),
-                validator: (value) => value == null ? 'Please select a category' : null,
+                validator: (value) => value == null ? 'Select category' : null,
               ),
+
+              // Savings Goal Selection
               if (_selectedCategory == 'Savings') ... [
                  const SizedBox(height: 16),
                  Consumer(
@@ -324,14 +367,22 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                      return goalsAsync.when(
                        data: (goals) {
                          if (goals.isEmpty) {
-                           return const Text('No savings goals found. Create one first.', style: TextStyle(color: Colors.orange));
+                           return Container(
+                             padding: const EdgeInsets.all(16),
+                             decoration: BoxDecoration(
+                               color: Colors.orange.withOpacity(0.1),
+                               borderRadius: BorderRadius.circular(16),
+                             ),
+                             child: const Text('No savings goals found. Create one first.', style: TextStyle(color: Colors.orange)),
+                           );
                          }
                          return DropdownButtonFormField<String>(
-                           value: _selectedSavingsGoalId, // Goals might change, ensure ID is valid
-                           decoration: const InputDecoration(labelText: 'Select Goal to Contribute', border: OutlineInputBorder()),
+                           value: _selectedSavingsGoalId,
+                           decoration: inputDecoration.copyWith(labelText: 'Select Goal', prefixIcon: const Icon(Icons.savings_rounded)),
+                           dropdownColor: theme.colorScheme.surfaceContainer,
                            items: goals.map((g) => DropdownMenuItem(value: g.id, child: Text(g.name))).toList(),
                            onChanged: (val) => setState(() => _selectedSavingsGoalId = val),
-                           validator: (value) => value == null ? 'Please select a goal' : null,
+                           validator: (value) => value == null ? 'Select a goal' : null,
                          );
                        },
                        loading: () => const LinearProgressIndicator(),
@@ -341,22 +392,80 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                  )
               ],
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _paymentMethod,
-                decoration: const InputDecoration(labelText: 'Payment Method', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'Salary', child: Text('Salary')),
-                  DropdownMenuItem(value: 'Credit Card', child: Text('Credit Card')),
-                  DropdownMenuItem(value: 'Cash', child: Text('Cash')),
-                  DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+
+              // Payment Method & Date Row
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: DropdownButtonFormField<String>(
+                      value: _paymentMethod,
+                      decoration: inputDecoration.copyWith(labelText: 'Payment', prefixIcon: const Icon(Icons.payment_rounded)),
+                      dropdownColor: theme.colorScheme.surfaceContainer,
+                      items: const [
+                        DropdownMenuItem(value: 'Debit Card', child: Text('Debit Card')),
+                        DropdownMenuItem(value: 'Credit Card', child: Text('Credit Card')),
+                        DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                        DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+                      ],
+                      onChanged: (val) => setState(() {
+                        _paymentMethod = val!;
+                        if (_paymentMethod != 'Credit Card') {
+                          _selectedCreditCardId = null;
+                        }
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                          builder: (context, child) {
+                            return Theme(
+                              data: theme.copyWith(
+                                datePickerTheme: DatePickerThemeData(
+                                  backgroundColor: theme.colorScheme.surface,
+                                  headerBackgroundColor: theme.colorScheme.primary,
+                                )
+                              ),
+                              child: child!,
+                            );
+                          }
+                        );
+                        if (picked != null) setState(() => _selectedDate = picked);
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '${_selectedDate.day}/${_selectedDate.month}', 
+                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+                            ),
+                            Text(
+                              'Date', 
+                              style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
-                onChanged: (val) => setState(() {
-                  _paymentMethod = val!;
-                  if (_paymentMethod != 'Credit Card') {
-                    _selectedCreditCardId = null;
-                  }
-                }),
               ),
+
+              // Credit Card Selection
               if (_paymentMethod == 'Credit Card') ...[
                 const SizedBox(height: 16),
                 Consumer(
@@ -364,15 +473,13 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     final cardsAsync = ref.watch(creditCardProvider);
                     return cardsAsync.when(
                       data: (cards) {
-                        if (cards.isEmpty) {
-                          return const Text('No credit cards found. Please add one in Settings.', style: TextStyle(color: Colors.red));
-                        }
                         return DropdownButtonFormField<String>(
                           value: _selectedCreditCardId,
-                          decoration: const InputDecoration(labelText: 'Select Credit Card', border: OutlineInputBorder()),
+                          decoration: inputDecoration.copyWith(labelText: 'Select Card', prefixIcon: const Icon(Icons.credit_card_rounded)),
+                          dropdownColor: theme.colorScheme.surfaceContainer,
                           items: cards.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
                           onChanged: (val) => setState(() => _selectedCreditCardId = val),
-                          validator: (value) => value == null ? 'Please select a card' : null,
+                          validator: (value) => value == null ? 'Select a card' : null,
                         );
                       },
                       loading: () => const CircularProgressIndicator(),
@@ -381,37 +488,32 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   },
                 ),
               ],
-              const SizedBox(height: 16),
-              ListTile(
-                title: const Text('Date'),
-                subtitle: Text('${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
-                  );
-                  if (picked != null) setState(() => _selectedDate = picked);
-                },
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
+
+              const SizedBox(height: 48),
+
+              // Save Button
+              FilledButton(
                 onPressed: _saveExpense,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Colors.teal,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  backgroundColor: theme.colorScheme.primary,
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 8,
+                  shadowColor: theme.colorScheme.primary.withOpacity(0.4),
                 ),
-                child: Text(widget.expense == null ? 'Save Expense' : 'Update Expense'),
+                child: Text(
+                  widget.expense == null ? 'Save Transaction' : 'Update Transaction',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
+              
               if (widget.expense != null) ...[
                 const SizedBox(height: 16),
                 TextButton.icon(
                   onPressed: _deleteExpense,
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  label: const Text('Delete Expense', style: TextStyle(color: Colors.red)),
+                  icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
+                  label: Text('Delete Transaction', style: TextStyle(color: theme.colorScheme.error)),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -428,6 +530,26 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     if (_formKey.currentState!.validate()) {
       final amountVal = double.parse(_amountController.text);
       
+      // Auto-calculate Need vs Want
+      final categories = ref.read(categoryProvider).value ?? [];
+      final category = categories.firstWhere(
+        (c) => c.name == _selectedCategory, 
+        orElse: () => const CategoryModel(name: 'Unknown', type: 'Want')
+      );
+      final isNeed = category.type == 'Need';
+      
+      final now = DateTime.now();
+      if (_selectedDate.isAfter(now)) {
+         final dateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+         final todayOnly = DateTime(now.year, now.month, now.day);
+         if (dateOnly.isAfter(todayOnly)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Cannot save expense for a future date.')),
+            );
+            return;
+         }
+      }
+
       final expense = ExpenseModel(
         id: widget.expense?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         title: _titleController.text,
@@ -437,6 +559,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         paymentMethod: _paymentMethod,
         creditCardId: _selectedCreditCardId,
         savingsGoalId: _selectedSavingsGoalId,
+        isNeed: isNeed,
       );
 
       // Save Expense
@@ -456,7 +579,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text('Added ₹$amountVal to ${goal.name}')),
+               SnackBar(
+                 content: Text('Added ₹$amountVal to ${goal.name}'),
+                 behavior: SnackBarBehavior.floating,
+                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+               ),
             );
           }
         } catch (e) {

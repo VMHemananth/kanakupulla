@@ -11,7 +11,11 @@ import '../widgets/salary_card.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/expense_chart.dart';
 import '../widgets/recent_expenses.dart';
-import '../widgets/credit_usage_card.dart';
+import '../widgets/expense_chart.dart';
+import '../widgets/recent_expenses.dart';
+// import '../widgets/credit_usage_card.dart'; // Deprecated
+import '../widgets/weekly_spending_chart.dart';
+import '../widgets/income_expense_gauge.dart';
 import '../widgets/weekly_spending_chart.dart';
 import '../widgets/income_expense_gauge.dart';
 import 'add_expense_screen.dart';
@@ -45,6 +49,7 @@ import 'debt_list_screen.dart';
 import 'savings_list_screen.dart';
 import 'split/group_list_screen.dart';
 import '../../data/services/widget_service.dart';
+import '../widgets/financial_health_widgets.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -54,6 +59,18 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Good Morning,';
+    } else if (hour < 17) {
+      return 'Good Afternoon,';
+    } else {
+      return 'Good Evening,';
+    }
+  }
   @override
   void initState() {
     super.initState();
@@ -123,12 +140,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       if (now.day > card.billingDay && card.lastBillGeneratedMonth != currentMonthStr) {
         // We have a pending bill check for this month.
         
+        // Helper to handle days > 28
+        DateTime getValidDate(int y, int m, int d) {
+           final lastDay = DateTime(y, m + 1, 0).day;
+           return DateTime(y, m, d > lastDay ? lastDay : d);
+        }
+
         // Cycle: From [Month-1, BillingDay] to [Month, BillingDay - 1]
-        final cycleEnd = DateTime(now.year, now.month, card.billingDay - 1, 23, 59, 59);
-        final cycleStart = DateTime(now.year, now.month - 1, card.billingDay);
+        // Handle Start Date: Month-1, BillingDay (Clamped)
+        final cycleStart = getValidDate(now.year, now.month - 1, card.billingDay);
         
+        // Handle End Date: Month, BillingDay - 1 (Clamped)
+        // Note: If BillingDay is 1, BillingDay-1 is 0. DateTime handles 0 as last day of prev month correctly.
+        // But better to be explicit:
+        DateTime cycleEnd;
+        if (card.billingDay == 1) {
+           // If billing is 1st, cycle ends on last day of previous month
+           final lastDayPrevMonth = DateTime(now.year, now.month, 0);
+           cycleEnd = DateTime(lastDayPrevMonth.year, lastDayPrevMonth.month, lastDayPrevMonth.day, 23, 59, 59);
+        } else {
+           cycleEnd = getValidDate(now.year, now.month, card.billingDay - 1);
+           cycleEnd = cycleEnd.add(const Duration(hours: 23, minutes: 59, seconds: 59));
+        }
         final allExpenses = await ref.read(expenseRepositoryProvider).getExpenses();
-        final cycleExpenses = allExpenses.where((e) => 
+        final cycleExpenses = allExpenses.where((e) =>  
           e.creditCardId == card.id && 
           e.date.isAfter(cycleStart.subtract(const Duration(seconds: 1))) && 
           e.date.isBefore(cycleEnd.add(const Duration(seconds: 1))) &&
@@ -179,7 +214,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         id: 'bill_${card.id}_${now.year}_${now.month}',
                         title: '${card.name} Bill',
                         amount: totalAmount,
-                        date: DateTime(now.year, now.month + 1, card.billingDay), // Due date approx next month
+                        date: getValidDate(now.year, now.month + 1, card.billingDay), // Due date approx next month
                         category: 'Bills',
                         paymentMethod: 'Bank Transfer',
                         isCreditCardBill: true,
@@ -217,23 +252,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final date = ref.watch(selectedDateProvider);
+    final theme = Theme.of(context);
     final user = ref.watch(userProvider);
 
-    // Listen for date changes to trigger auto-add
     ref.listen(selectedDateProvider, (previous, next) {
       _checkFixedExpenses(next);
     });
 
-    // Listen for fixed expense changes to trigger auto-add (e.g. after adding new fixed expense)
     ref.listen(fixedExpensesProvider, (previous, next) {
       _checkFixedExpenses(date);
     });
 
-    // Calculate Balance for Widget
     final expensesAsync = ref.watch(expensesProvider);
     final incomeAsync = ref.watch(salaryProvider);
     
-    final totalExpense = expensesAsync.value?.fold(0.0, (sum, e) => sum! + e.amount) ?? 0.0;
+    final totalExpense = expensesAsync.value?.fold(0.0, (sum, e) {
+      if (e.paymentMethod == 'Credit Card' && !e.isCreditCardBill) return sum!;
+      return sum! + e.amount;
+    }) ?? 0.0;
     final totalIncome = incomeAsync.value?.fold(0.0, (sum, e) => sum! + e.amount) ?? 0.0;
     final balance = totalIncome - totalExpense;
 
@@ -242,21 +278,181 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
     
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kanakupulla'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
+      key: _scaffoldKey,
+      body: Stack(
+        children: [
+          // Background Gradient Header
+          Container(
+            height: 280,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.tertiary,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(32),
+                bottomRight: Radius.circular(32),
+              ),
+            ),
+          ),
+          
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _buildCustomHeader(context, user, date),
+                const SizedBox(height: 16), // Spacing between header and card
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.scaffoldBackgroundColor,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(32),
+                        topRight: Radius.circular(32),
+                      ),
+                      boxShadow: [
+                         BoxShadow(
+                           color: Colors.black.withOpacity(0.05),
+                           blurRadius: 10,
+                           offset: const Offset(0, -5),
+                         ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(32),
+                        topRight: Radius.circular(32),
+                      ),
+                      child: RefreshIndicator(
+                        onRefresh: () async {
+                          ref.refresh(expensesProvider);
+                        },
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 32, 20, 100),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSectionHeader(context, "Quick Actions", null),
+                              const SizedBox(height: 16),
+                              _buildQuickActions(context),
+                              const SizedBox(height: 32),
+                              
+                              const UnifiedCreditCard(),
+                              const SizedBox(height: 24),
+                              const IncomeExpenseGauge(),
+                              const SizedBox(height: 32),
+                              
+                              _buildSectionHeader(context, 'Spending Trends', () {
+                                Navigator.push(context, MaterialPageRoute(builder: (c) => const AnalysisScreen()));
+                              }),
+                              const SizedBox(height: 16),
+                              const WeeklySpendingChart(),
+                              const SizedBox(height: 24),
+                              const ExpenseChart(), // Interactive Breakdown
+                              const SizedBox(height: 32),
+                              
+                              _buildSectionHeader(context, 'Recent Activity', () {
+                                Navigator.push(context, MaterialPageRoute(builder: (c) => const ExpenseListScreen()));
+                              }),
+                              const SizedBox(height: 16),
+                              const RecentExpenses(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      drawer: _buildDrawer(context, user, ref), // Extracted drawer for cleaner code
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'voice_fab',
+            onPressed: () => _showVoiceInput(context, ref),
+            backgroundColor: theme.colorScheme.tertiary,
+            child: const Icon(Icons.mic, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton.extended(
+            heroTag: 'add_fab',
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SearchScreen()),
+                MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
               );
             },
+            icon: const Icon(Icons.add),
+            label: const Text('Add Expense'),
           ),
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () async {
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context, dynamic user, DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _getGreeting(),
+                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                  ),
+                  Text(
+                    user.name.split(' ').first,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: () {
+                   _scaffoldKey.currentState?.openDrawer();
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundImage: user.profilePicPath != null 
+                      ? (user.profilePicPath!.startsWith('http') 
+                          ? NetworkImage(user.profilePicPath!) 
+                          : FileImage(File(user.profilePicPath!)) as ImageProvider)
+                      : null,
+                    child: user.profilePicPath == null ? const Icon(Icons.person) : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Month Selector
+          GestureDetector(
+            onTap: () async {
               final picked = await showDatePicker(
                 context: context,
                 initialDate: date,
@@ -265,541 +461,261 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 initialDatePickerMode: DatePickerMode.year,
               );
               if (picked != null) {
-                // We only care about month and year
                 ref.read(selectedDateProvider.notifier).state = DateTime(picked.year, picked.month);
-                // Refresh data
                 ref.refresh(expensesProvider);
               }
             },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withOpacity(0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.calendar_month, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    DateFormat('MMMM yyyy').format(date),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Colors.white),
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      drawer: Drawer(
-        child: ListView(
-          children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                );
-              },
-              child: UserAccountsDrawerHeader(
-                accountName: Text(user.name),
-                accountEmail: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user.email),
-                    if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty)
-                      Text(user.phoneNumber!, style: const TextStyle(fontSize: 12)),
-                  ],
-                ),
-                currentAccountPicture: CircleAvatar(
-                  backgroundImage: user.profilePicPath != null 
-                    ? (user.profilePicPath!.startsWith('http') 
-                        ? NetworkImage(user.profilePicPath!) 
-                        : FileImage(File(user.profilePicPath!)) as ImageProvider)
-                    : null,
-                  child: user.profilePicPath == null ? const Icon(Icons.person) : null,
-                ),
-                decoration: const BoxDecoration(
-                  color: Colors.blue,
-                ),
-              ),
+    );
+  }
+
+  Drawer _buildDrawer(BuildContext context, dynamic user, WidgetRef ref) {
+    return Drawer(
+      child: ListView(
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(user.name),
+            accountEmail: Text(user.email),
+            currentAccountPicture: CircleAvatar(
+               backgroundImage: user.profilePicPath != null 
+                 ? (user.profilePicPath!.startsWith('http') 
+                     ? NetworkImage(user.profilePicPath!) 
+                     : FileImage(File(user.profilePicPath!)) as ImageProvider)
+                 : null,
+               child: user.profilePicPath == null ? const Icon(Icons.person) : null,
             ),
-            ListTile(
-              leading: const Icon(Icons.compare_arrows),
-              title: const Text('Monthly Compare'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MonthlyCompareScreen()),
-                );
-              },
-            ),
-            ListTile(
+             decoration: BoxDecoration(
+               gradient: LinearGradient(
+                 colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
+               ),
+             ),
+          ),
+          
+             ListTile(
               leading: const Icon(Icons.pie_chart),
               title: const Text('Spending Analysis'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AnalysisScreen()),
-                );
+                Navigator.push(context,MaterialPageRoute(builder: (context) => const AnalysisScreen()));
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.calendar_month),
+             ListTile(
+              leading: const Icon(Icons.calendar_today),
               title: const Text('Calendar View'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const DailyExpensesCalendarScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.category),
-              title: const Text('Manage Categories'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ManageCategoriesAndBudgetsScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.repeat),
-              title: const Text('Fixed Expenses'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ManageFixedExpensesScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.monetization_on),
-              title: const Text('Recurring Income'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ManageRecurringIncomeScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.credit_card),
-              title: const Text('Credit Cards'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ManageCreditCardsScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.money_off),
-              title: const Text('Debts & Loans'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const DebtListScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.group),
-              title: const Text('Bill Split'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const GroupListScreen()),
-                );
+                Navigator.push(context,MaterialPageRoute(builder: (context) => const DailyExpensesCalendarScreen()));
               },
             ),
             ListTile(
               leading: const Icon(Icons.savings),
-              title: const Text('Savings Goals'),
+              title: const Text('Savings & Goals'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SavingsListScreen()),
-                );
+                Navigator.push(context,MaterialPageRoute(builder: (context) => const SavingsListScreen()));
               },
             ),
+
+            const Divider(),
+            
+            ExpansionTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('Manage'),
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.category),
+                  title: const Text('Categories & Budgets'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageCategoriesAndBudgetsScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.credit_card),
+                  title: const Text('Credit Cards'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageCreditCardsScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.push_pin),
+                  title: const Text('Fixed Expenses'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageFixedExpensesScreen()));
+                  },
+                ),
+                 ListTile(
+                  leading: const Icon(Icons.attach_money),
+                  title: const Text('Recurring Income'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageRecurringIncomeScreen()));
+                  },
+                ),
+              ],
+            ),
+
+            ExpansionTile(
+              leading: const Icon(Icons.assessment),
+              title: const Text('Reports'),
+              children: [
+                ListTile(
+                  title: const Text('Yearly Overview'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const YearlyReportScreen()));
+                  },
+                ),
+                ListTile(
+                  title: const Text('Monthly Comparison'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MonthlyCompareScreen()));
+                  },
+                ),
+              ],
+            ),
+            
+            const Divider(),
+
             ListTile(
               leading: const Icon(Icons.file_download),
-              title: const Text('Export Report'),
+              title: const Text('Export Data'),
               onTap: () {
                 Navigator.pop(context);
-                _showExportDialog();
+                 _showExportDialog();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.calendar_month),
-              title: const Text('Yearly Financial Overview'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const YearlyReportScreen()),
-                );
-              },
-            ),
-            ListTile(
+             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Settings'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                );
+                Navigator.push(context,MaterialPageRoute(builder: (context) => const SettingsScreen()));
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Sign Out'),
-              onTap: () {
-                Navigator.pop(context);
-                ref.read(authProvider.notifier).logout();
-              },
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'voice_fab',
-            onPressed: () => _showVoiceInput(context, ref),
-            backgroundColor: Colors.indigoAccent,
-            child: const Icon(Icons.mic, color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            heroTag: 'add_fab',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
-              );
-            },
-            child: const Icon(Icons.add),
-          ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.refresh(expensesProvider);
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ... existing header ...
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat('MMMM yyyy').format(date),
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.list),
-                    label: const Text('View All'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(48, 40),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (ctx) => const ExpenseListScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              
-              const SizedBox(height: 16),
-              const IncomeExpenseGauge(),
-              const SizedBox(height: 16),
-              _buildInsightBanner(context, ref),
-              const SizedBox(height: 16),
-              _buildQuickActions(context),
-              const SizedBox(height: 16),
-              const CreditUsageCard(),
-              const SizedBox(height: 16),
-
-              // Prompts
-              Consumer(builder: (context, ref, _) {
-                final incomeAsync = ref.watch(salaryProvider);
-                final budgetAsync = ref.watch(budgetProvider);
-                
-                final hasIncome = incomeAsync.value?.isNotEmpty ?? false;
-                final hasBudget = budgetAsync.value != null;
-
-                if (hasIncome && hasBudget) return const SizedBox.shrink();
-
-                final colorScheme = Theme.of(context).colorScheme;
-
-                return Column(
-                  children: [
-                    if (!hasIncome)
-                      Card(
-                        color: colorScheme.errorContainer, // Better dark mode support
-                        child: ListTile(
-                          leading: Icon(Icons.warning, color: colorScheme.onErrorContainer),
-                          title: Text('No Income Added', style: TextStyle(color: colorScheme.onErrorContainer)),
-                          subtitle: Text('Add your salary to track balance.', style: TextStyle(color: colorScheme.onErrorContainer)),
-                          trailing: TextButton(
-                            onPressed: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (c) => const IncomeListScreen()));
-                            },
-                            child: Text('ADD', style: TextStyle(color: colorScheme.onErrorContainer, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                      ),
-                    if (!hasBudget)
-                      Card(
-                        color: colorScheme.secondaryContainer,
-                        child: ListTile(
-                          leading: Icon(Icons.info, color: colorScheme.onSecondaryContainer),
-                          title: Text('No Budget Set', style: TextStyle(color: colorScheme.onSecondaryContainer)),
-                          subtitle: Text('Set a monthly budget to track spending.', style: TextStyle(color: colorScheme.onSecondaryContainer)),
-                          trailing: TextButton(
-                            onPressed: () {
-                              _showSetBudgetDialog(context, ref, date);
-                            },
-                            child: Text('SET', style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                      ),
-                    // SMS Prompt
-                    Consumer(builder: (context, ref, _) {
-                      final smsAsync = ref.watch(smsTransactionsProvider);
-                      return smsAsync.when(
-                        data: (txns) {
-                          if (txns.isEmpty) return const SizedBox.shrink();
-                          return Card(
-                            color: colorScheme.tertiaryContainer,
-                            child: ListTile(
-                              leading: Icon(Icons.sms, color: colorScheme.onTertiaryContainer),
-                              title: Text('New Transactions', style: TextStyle(color: colorScheme.onTertiaryContainer)),
-                              subtitle: Text('${txns.length} potential expenses found.', style: TextStyle(color: colorScheme.onTertiaryContainer)),
-                              trailing: TextButton(
-                                onPressed: () {
-                                  Navigator.push(context, MaterialPageRoute(builder: (c) => const TransactionReviewScreen()));
-                                },
-                                child: Text('REVIEW', style: TextStyle(color: colorScheme.onTertiaryContainer, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          );
-                        },
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                      );
-                    }),
-                    const SizedBox(height: 16),
-                  ],
-                );
-              }),
-              const ExpenseChart(), // Added Interactive Breakdown
-              const SizedBox(height: 16),
-              const WeeklySpendingChart(),
-              const SizedBox(height: 16),
-              const RecentExpenses(),
-            ],
-          ),
-        ),
-      ),
-
     );
   }
 
-  Widget _buildQuickActions(BuildContext context) {
+  Widget _buildSectionHeader(BuildContext context, String title, VoidCallback? onAction) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildActionButton(context, Icons.camera_alt, 'Scan', () {
-             Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
-             );
-             // Note: Ideally AddExpenseScreen should open camera directly if a flag is passed, 
-             // but 'Scan' just opening form with easy access to camera is fine for now MVP.
-             // Actually, the user asked for "Scan Receipt" -> let's make it trigger scan on open if possible or just open screen.
-        }),
-        _buildActionButton(context, Icons.email, 'Inbox', () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SmsTransactionsScreen()),
-            );
-        }),
-        _buildActionButton(context, Icons.calendar_month, 'Calendar', () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const DailyExpensesCalendarScreen()),
-            );
-        }),
-        _buildActionButton(context, Icons.pie_chart, 'Analysis', () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AnalysisScreen()),
-            );
-        }),
-        _buildActionButton(context, Icons.group, 'Split', () {
-             Navigator.push(
-               context,
-               MaterialPageRoute(builder: (context) => const GroupListScreen()),
-             );
-        }),
+        Text(title, 
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).textTheme.titleLarge?.color
+          )
+        ),
+        if (onAction != null)
+          TextButton(
+            onPressed: onAction,
+            child: const Row(
+              children: [
+                 Text('View All', style: TextStyle(fontWeight: FontWeight.bold)),
+                 SizedBox(width: 4),
+                 Icon(Icons.arrow_forward_rounded, size: 16),
+              ],
+            ),
+          )
       ],
     );
   }
 
+  Widget _buildQuickActions(BuildContext context) {
+    return SizedBox(
+      height: 100,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        children: [
+          _buildActionButton(context, Icons.account_balance_wallet, 'Salary', () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const IncomeListScreen()));
+          }),
+          _buildActionButton(context, Icons.savings, 'Budget', () {
+             _showSetBudgetDialog(context, ref, DateTime.now());
+          }),
+          _buildActionButton(context, Icons.list_alt, 'Transactions', () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));
+          }),
+          _buildActionButton(context, Icons.email, 'Inbox', () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const SmsTransactionsScreen()));
+          }),
+          _buildActionButton(context, Icons.calendar_month, 'Calendar', () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const DailyExpensesCalendarScreen()));
+          }),
+          _buildActionButton(context, Icons.pie_chart, 'Analysis', () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const AnalysisScreen()));
+          }),
+          _buildActionButton(context, Icons.group, 'Split', () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const GroupListScreen()));
+          }),
+           _buildActionButton(context, Icons.money_off, 'Loans', () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtListScreen()));
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButton(BuildContext context, IconData icon, String label, VoidCallback onTap) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+    return Padding(
+      padding: const EdgeInsets.only(right: 16),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              shape: BoxShape.circle,
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 28),
             ),
-            child: Icon(icon, color: colorScheme.onPrimaryContainer, size: 24),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget _buildInsightBanner(BuildContext context, WidgetRef ref) {
-    final budgetAsync = ref.watch(budgetProvider);
-    final expensesAsync = ref.watch(expensesProvider);
-    final selectedDate = ref.watch(selectedDateProvider);
-    final now = DateTime.now();
-    
-    if (!budgetAsync.hasValue || !expensesAsync.hasValue || budgetAsync.value == null) {
-      return const SizedBox.shrink();
-    }
-
-    final totalBudget = budgetAsync.value!;
-    final totalExpense = expensesAsync.value!.fold(0.0, (sum, e) => sum + e.amount);
-    final remainingBudget = totalBudget.amount - totalExpense;
-    
-    bool isCurrentMonth = selectedDate.year == now.year && selectedDate.month == now.month;
-
-    // Feature: Safe-to-Spend Pulse
-    if (isCurrentMonth) {
-        final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
-        final daysLeft = lastDayOfMonth - now.day;
-        
-        if (remainingBudget <= 0) {
-           return _buildInsightCard(
-             context, 
-             Icons.warning_amber_rounded, 
-             Colors.red, 
-             'Critical: Budget Exceeded',
-             'Try to curb spending for the rest of the month.',
-           );
-        }
-
-        if (daysLeft <= 0) {
-           // Last day or logic edge case
-           return _buildInsightCard(
-             context, 
-             Icons.check_circle_outline, 
-             Colors.green, 
-             'Month End',
-             'You have ₹${remainingBudget.toStringAsFixed(0)} left!',
-           );
-        }
-
-        final dailyLimit = remainingBudget / daysLeft;
-        
-        return Container(
-          width: double.infinity,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.indigo.shade900, Colors.purple.shade900],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(color: Colors.purple.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                   const Text('Safe to Spend', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
-                   Container(
-                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                     decoration: BoxDecoration(
-                       color: Colors.black26, 
-                       borderRadius: BorderRadius.circular(12)
-                     ),
-                     child: Text('$daysLeft days left', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                   )
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '₹${dailyLimit.toStringAsFixed(0)}', 
-                    style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 6.0, left: 4.0),
-                    child: Text('/ day', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'To stay within your budget of ₹${totalBudget.amount.toStringAsFixed(0)}',
-                style: const TextStyle(color: Colors.white54, fontSize: 11),
-              ),
-            ],
-          ),
-        );
-    }
-
-    // Fallback for Past Months (Generic Summary)
-    final percentage = (totalExpense / totalBudget.amount) * 100;
-    String title = '';
-    String subtitle = '';
-    Color color = Colors.green;
-    IconData icon = Icons.thumb_up;
-
-    if (percentage > 100) {
-      title = 'Budget Exceeded';
-      subtitle = 'You overshot by ${(percentage - 100).toStringAsFixed(0)}%.';
-      color = Colors.red;
-      icon = Icons.warning;
-    } else {
-      title = 'Under Budget';
-      subtitle = 'You saved ${(100 - percentage).toStringAsFixed(0)}% this month.';
-      color = Colors.green;
-      icon = Icons.thumb_up;
-    }
-
-    return _buildInsightCard(context, icon, color, title, subtitle);
-  }
 
   Widget _buildInsightCard(BuildContext context, IconData icon, Color color, String title, String subtitle) {
     return Container(

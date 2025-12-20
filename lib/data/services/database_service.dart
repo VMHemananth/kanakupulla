@@ -15,7 +15,7 @@ class DatabaseService {
     
     _db = await openDatabase(
       fullPath,
-      version: 16,
+      version: 17,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE expenses (
@@ -27,7 +27,8 @@ class DatabaseService {
             paymentMethod TEXT,
             creditCardId TEXT,
             isCreditCardBill INTEGER DEFAULT 0,
-            savingsGoalId TEXT
+            savingsGoalId TEXT,
+            isNeed INTEGER DEFAULT 1
           )
         ''');
         await db.execute('''
@@ -352,6 +353,13 @@ class DatabaseService {
           } catch (e) {
              // Ignore
           }
+        }
+        if (oldVersion < 17) {
+           try {
+             await db.execute("ALTER TABLE expenses ADD COLUMN isNeed INTEGER DEFAULT 1");
+           } catch (e) {
+             // Ignore
+           }
         }
       },
     );

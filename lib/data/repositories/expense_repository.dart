@@ -22,6 +22,9 @@ class ExpenseRepository {
       if (mutableMap['isCreditCardBill'] is int) {
         mutableMap['isCreditCardBill'] = (mutableMap['isCreditCardBill'] as int) == 1;
       }
+      if (mutableMap['isNeed'] is int) {
+        mutableMap['isNeed'] = (mutableMap['isNeed'] as int) == 1;
+      }
       return ExpenseModel.fromJson(mutableMap);
     }).toList();
   }

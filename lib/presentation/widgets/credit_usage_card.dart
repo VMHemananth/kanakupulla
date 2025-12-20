@@ -36,7 +36,10 @@ class CreditUsageCard extends ConsumerWidget {
                final parts = card.lastBillGeneratedMonth!.split('-');
                final year = int.parse(parts[0]);
                final month = int.parse(parts[1]);
-               startDate = DateTime(year, month, card.billingDay);
+               
+               // Logic: Start from billing day of that month (Clamped)
+               final lastDay = DateTime(year, month + 1, 0).day;
+               startDate = DateTime(year, month, card.billingDay > lastDay ? lastDay : card.billingDay);
              } catch (e) {
                startDate = DateTime(2000);
              }
