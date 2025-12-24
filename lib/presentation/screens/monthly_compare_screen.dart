@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../providers/expense_provider.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/services/pdf_service.dart';
+import '../../core/utils/financial_calculator.dart';
 
 class MonthlyCompareScreen extends ConsumerStatefulWidget {
   const MonthlyCompareScreen({super.key});
@@ -157,9 +158,10 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
 
     for (int i = 5; i >= 0; i--) {
       final date = DateTime(now.year, now.month - i, 1);
-      final total = allExpenses
+      final monthlyExpenses = allExpenses
           .where((e) => e.date.year == date.year && e.date.month == date.month)
-          .fold(0.0, (sum, e) => sum + e.amount);
+          .toList();
+      final total = FinancialCalculator.calculateTotalExpense(monthlyExpenses);
       
       trendData.add(FlSpot((5 - i).toDouble(), total));
       if (total > maxTotal) maxTotal = total;
@@ -221,8 +223,8 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
     for (var e in expenses2) allCats.add(e.category);
     final catList = allCats.toList()..sort();
 
-    final totals1 = {for (var c in catList) c: expenses1.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
-    final totals2 = {for (var c in catList) c: expenses2.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
+    final totals1 = {for (var c in catList) c: FinancialCalculator.calculateTotalExpense(expenses1.where((e) => e.category == c).toList())};
+    final totals2 = {for (var c in catList) c: FinancialCalculator.calculateTotalExpense(expenses2.where((e) => e.category == c).toList())};
 
     if (catList.isEmpty) return const Center(child: Text('No data to compare'));
     
@@ -314,8 +316,8 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
     for (var e in expenses2) allCats.add(e.category);
     final catList = allCats.toList()..sort();
 
-    final totals1 = {for (var c in catList) c: expenses1.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
-    final totals2 = {for (var c in catList) c: expenses2.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
+    final totals1 = {for (var c in catList) c: FinancialCalculator.calculateTotalExpense(expenses1.where((e) => e.category == c).toList())};
+    final totals2 = {for (var c in catList) c: FinancialCalculator.calculateTotalExpense(expenses2.where((e) => e.category == c).toList())};
 
     return ListView.builder(
       shrinkWrap: true,
@@ -393,9 +395,9 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
      final trendLabels = <String>[];
      for (int i = 5; i >= 0; i--) {
         final date = DateTime(now.year, now.month - i, 1);
-        final total = allExpenses
-            .where((e) => e.date.year == date.year && e.date.month == date.month)
-            .fold(0.0, (sum, e) => sum + e.amount);
+        final monthlyExpenses = allExpenses
+            .where((e) => e.date.year == date.year && e.date.month == date.month).toList();
+        final total = FinancialCalculator.calculateTotalExpense(monthlyExpenses);
         trendValues.add(total);
         trendLabels.add(monthNames[date.month - 1]);
      }
@@ -408,8 +410,8 @@ class _MonthlyCompareScreenState extends ConsumerState<MonthlyCompareScreen> {
      for (var e in expenses2) allCats.add(e.category);
      final catList = allCats.toList()..sort();
      
-     final totals1 = {for (var c in catList) c: expenses1.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
-     final totals2 = {for (var c in catList) c: expenses2.where((e) => e.category == c).fold(0.0, (sum, e) => sum + e.amount)};
+     final totals1 = {for (var c in catList) c: FinancialCalculator.calculateTotalExpense(expenses1.where((e) => e.category == c).toList())};
+     final totals2 = {for (var c in catList) c: FinancialCalculator.calculateTotalExpense(expenses2.where((e) => e.category == c).toList())};
 
      // Call Service
      try {

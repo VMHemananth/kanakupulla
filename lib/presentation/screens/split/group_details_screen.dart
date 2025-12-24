@@ -162,9 +162,12 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
   }
 
   Widget _buildPoolSummary(BuildContext context, WidgetRef ref, GroupDetailsState state) {
+    final theme = Theme.of(context);
+    final isLowBalance = state.poolBalance < 1000;
+    
     return Card(
       margin: const EdgeInsets.all(16),
-      color: state.poolBalance < 1000 ? Colors.red.shade50 : Colors.blue.shade50,
+      color: isLowBalance ? theme.colorScheme.errorContainer : theme.colorScheme.primaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -172,19 +175,16 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Pool Balance', style: TextStyle(fontSize: 14)),
+                    Text('Pool Balance', style: TextStyle(fontSize: 14, color: isLowBalance ? theme.colorScheme.onErrorContainer : theme.colorScheme.onPrimaryContainer)),
                     Text(
                       '₹${state.poolBalance.toStringAsFixed(0)}',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: state.poolBalance < 1000 
-                            ? Colors.red 
-                            : Theme.of(context).colorScheme.primary, // Dynamic theme color
+                        color: isLowBalance ? theme.colorScheme.onErrorContainer : theme.colorScheme.onPrimaryContainer, 
                       ),
                     ),
                   ],
@@ -192,42 +192,46 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                 Row(
                    children: [
                      IconButton(
-                       icon: const Icon(Icons.history),
+                       icon: Icon(Icons.history, color: isLowBalance ? theme.colorScheme.onErrorContainer : theme.colorScheme.onPrimaryContainer),
                        tooltip: 'History',
                        onPressed: () => _showContributionsDialog(context, ref, state),
                      ),
                      const SizedBox(width: 8),
                      ElevatedButton.icon(
-                  onPressed: () {
-                    if (state.members.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add members first')));
-                      return;
-                    }
-                    showDialog(
-                      context: context,
-                      builder: (context) => AddContributionDialog(
-                        groupId: widget.groupId,
-                        members: state.members,
+                      onPressed: () {
+                        if (state.members.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add members first')));
+                          return;
+                        }
+                        showDialog(
+                          context: context,
+                          builder: (context) => AddContributionDialog(
+                            groupId: widget.groupId,
+                            members: state.members,
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isLowBalance ? theme.colorScheme.error : theme.colorScheme.primary,
+                        foregroundColor: isLowBalance ? theme.colorScheme.onError : theme.colorScheme.onPrimary,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Funds'),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Funds'),
+                    ),
+                  ],
                 ),
               ],
             ),
-              ],
-            ),
-            if (state.poolBalance < 1000)
+            if (isLowBalance)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning, color: Colors.amber, size: 16),
+                    Icon(Icons.warning_rounded, color: theme.colorScheme.error, size: 16),
                     const SizedBox(width: 8),
                     Text(
                       'Low balance! Please top up.',
-                      style: TextStyle(color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -280,10 +284,12 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
         ).name;
 
         final isSettlement = expense.type == 'SETTLEMENT';
+        final theme = Theme.of(context);
+        
         return Card(
-          color: isSettlement ? Colors.green.shade50 : null,
+          color: isSettlement ? theme.colorScheme.tertiaryContainer : null,
           child: ListTile(
-            leading: isSettlement ? const Icon(Icons.check_circle, color: Colors.green) : null,
+            leading: isSettlement ? Icon(Icons.check_circle, color: theme.colorScheme.tertiary) : null,
             title: Text(expense.title, style: TextStyle(fontWeight: isSettlement ? FontWeight.bold : FontWeight.normal)),
             subtitle: Text('${isSettlement ? 'Payment by' : 'Paid by'} $payerName • ${DateFormat('MMM d').format(expense.date)}'),
             trailing: Row(
@@ -294,7 +300,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold, 
                     fontSize: 16,
-                    color: isSettlement ? Colors.green : null
+                    color: isSettlement ? theme.colorScheme.tertiary : null
                   ),
                 ),
                 PopupMenuButton<String>(
@@ -316,6 +322,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
   }
 
   Widget _buildBalancesTab(BuildContext context, WidgetRef ref, GroupDetailsState state) {
+    final theme = Theme.of(context);
     if (state.members.isEmpty) return const Center(child: Text('No members'));
 
     return ListView(
@@ -370,7 +377,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                    Text(
                     isPositive ? 'Gets back ₹${balance.toStringAsFixed(0)}' : 'Owes ₹${balance.abs().toStringAsFixed(0)}',
                     style: TextStyle(
-                      color: isPositive ? Colors.green : Colors.red,
+                      color: isPositive ? Colors.green : theme.colorScheme.error,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -395,7 +402,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                                   Navigator.pop(ctx);
                                   ref.read(groupDetailsProvider(widget.groupId).notifier).deleteMember(member.id);
                                 }, 
-                                child: const Text('Delete', style: TextStyle(color: Colors.red))
+                                child: Text('Delete', style: TextStyle(color: theme.colorScheme.error))
                               ),
                             ],
                           ),

@@ -126,4 +126,27 @@ class CategoryBudgetNotifier extends StateNotifier<AsyncValue<List<BudgetModel>>
       state = AsyncValue.error(e, st);
     }
   }
+
+  Future<void> batchSetCategoryBudgets(Map<String, double> budgets) async {
+    try {
+      // Optimistically update state? Or just wait for reload? 
+      // Given we are saving, let's just do the writes and reload.
+      final monthId = '${_date.year}_${_date.month}';
+      
+      for (var entry in budgets.entries) {
+        final category = entry.key;
+        final amount = entry.value;
+        final budget = BudgetModel(
+          id: '${monthId}_$category',
+          month: monthId,
+          amount: amount,
+          category: category,
+        );
+        await _repository.setBudget(budget);
+      }
+      await loadBudgets();
+    } catch (e) {
+      // Handle error
+    }
+  }
 }

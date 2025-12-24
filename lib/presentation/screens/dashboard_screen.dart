@@ -50,6 +50,7 @@ import 'savings_list_screen.dart';
 import 'split/group_list_screen.dart';
 import '../../data/services/widget_service.dart';
 import '../widgets/financial_health_widgets.dart';
+import 'next_month_estimation_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -521,6 +522,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Navigator.push(context,MaterialPageRoute(builder: (context) => const AnalysisScreen()));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.next_plan),
+              title: const Text('Next Month Planner'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,MaterialPageRoute(builder: (context) => const NextMonthEstimationScreen()));
+              },
+            ),
              ListTile(
               leading: const Icon(Icons.calendar_today),
               title: const Text('Calendar View'),
@@ -659,7 +668,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
              Navigator.push(context, MaterialPageRoute(builder: (context) => const IncomeListScreen()));
           }),
           _buildActionButton(context, Icons.savings, 'Budget', () {
-             _showSetBudgetDialog(context, ref, DateTime.now());
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageCategoriesAndBudgetsScreen()));
           }),
           _buildActionButton(context, Icons.list_alt, 'Transactions', () {
              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));

@@ -140,7 +140,9 @@ class _AddGoalScreenState extends ConsumerState<AddGoalScreen> {
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Please enter target amount';
-                  if (double.tryParse(value) == null) return 'Invalid amount';
+                  final val = double.tryParse(value);
+                  if (val == null) return 'Invalid amount';
+                  if (val <= 0) return 'Target must be greater than 0';
                   return null;
                 },
               ),
@@ -160,7 +162,7 @@ class _AddGoalScreenState extends ConsumerState<AddGoalScreen> {
                   final picked = await showDatePicker(
                     context: context,
                     initialDate: _deadline ?? DateTime.now().add(const Duration(days: 30)),
-                    firstDate: DateTime.now(),
+                    firstDate: DateTime.now(), // Prevent past dates
                     lastDate: DateTime(2100),
                   );
                   if (picked != null) setState(() => _deadline = picked);

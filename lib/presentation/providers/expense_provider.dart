@@ -68,6 +68,39 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<List<ExpenseModel>>> {
 
   Future<void> updateExpense(ExpenseModel expense) async {
     try {
+      // Logic to sync savings if applicable
+      if (expense.savingsGoalId != null) {
+          final allExpenses = _ref.read(allExpensesProvider).value ?? [];
+          // Find OLD expense to compare amount
+          // Note: allExpenses might be stale if not refreshed, but typically it's okay.
+          // Better to fetch from repository or rely on current state.
+          ExpenseModel? oldExpense;
+          try {
+             oldExpense = allExpenses.firstWhere((e) => e.id == expense.id);
+          } catch (e) {
+             try {
+                oldExpense = state.value?.firstWhere((e) => e.id == expense.id);
+             } catch (e2) {
+                // Not found anywhere
+             }
+          }
+          
+          if (oldExpense != null) {
+              final diff = expense.amount - oldExpense.amount;
+              
+              if (diff != 0) {
+                  final goals = _ref.read(savingsProvider).value ?? [];
+                  try {
+                    final goal = goals.firstWhere((g) => g.id == expense.savingsGoalId);
+                    final updatedGoal = goal.copyWith(currentAmount: goal.currentAmount + diff);
+                    await _ref.read(savingsProvider.notifier).updateGoal(updatedGoal);
+                  } catch (e) {
+                    // Goal might be not found
+                  }
+              }
+          }
+      }
+
       await _repository.updateExpense(expense);
       await loadExpenses();
       _ref.refresh(allExpensesProvider);

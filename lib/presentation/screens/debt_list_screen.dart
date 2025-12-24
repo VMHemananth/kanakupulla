@@ -66,6 +66,8 @@ class DebtTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final debtsAsync = ref.watch(debtProvider);
+    final theme = Theme.of(context);
+    final isLent = type == 'Lent';
 
     return debtsAsync.when(
       data: (debts) {
@@ -74,255 +76,280 @@ class DebtTab extends ConsumerWidget {
             .where((d) => !d.isSettled)
             .fold(0.0, (sum, d) => sum + d.amount);
 
+        // Define Gradient Colors
+        final gradientColors = isLent
+            ? [const Color(0xFF10B981), const Color(0xFF059669)] // Emerald
+            : [const Color(0xFFEF4444), const Color(0xFFDC2626)]; // Red
+
         return Column(
           children: [
-            // Summary Card
-            Card(
+            // 1. Hero Summary Card
+            Container(
+              width: double.infinity,
               margin: const EdgeInsets.all(16),
-              color: type == 'Lent' ? Colors.green[100] : Colors.red[100],
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      type == 'Lent' ? 'Total to Receive' : 'Total to Pay',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      '₹${totalAmount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: type == 'Lent' ? Colors.green[800] : Colors.red[800],
-                      ),
-                    ),
-                  ],
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: gradientColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: gradientColors[0].withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 8),
+                  )
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isLent ? 'Total To Receive' : 'Total To Pay',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isLent ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '₹${totalAmount.toStringAsFixed(0)}',
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Across ${filteredDebts.where((d) => !d.isSettled).length} active records',
+                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                  ),
+                ],
               ),
             ),
+
+            // 2. List
             Expanded(
               child: filteredDebts.isEmpty
-                  ? const Center(child: Text('No records found'))
-                  : ListView.builder(
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.receipt_long_rounded, size: 64, color: theme.colorScheme.outline.withOpacity(0.5)),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No records found',
+                            style: TextStyle(color: theme.colorScheme.secondary),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       itemCount: filteredDebts.length,
+                      separatorBuilder: (c, i) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final debt = filteredDebts[index];
                         final isOverdue = !debt.isSettled && _isOverdue(debt.dueDate);
 
-                        return Card(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: isOverdue 
-                             ? RoundedRectangleBorder(side: const BorderSide(color: Colors.red, width: 2), borderRadius: BorderRadius.circular(12)) 
-                             : null,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: debt.isSettled ? Colors.grey : (type == 'Lent' ? Colors.green : Colors.red),
-                              child: Icon(
-                                debt.isSettled ? Icons.check : (type == 'Lent' ? Icons.arrow_upward : Icons.arrow_downward),
-                                color: Colors.white,
-                              ),
-                            ),
-                            title: Text(debt.personName, style: TextStyle(decoration: debt.isSettled ? TextDecoration.lineThrough : null)),
-                            subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainer,
+                            borderRadius: BorderRadius.circular(20),
+                            border: isOverdue 
+                              ? Border.all(color: theme.colorScheme.error.withOpacity(0.5), width: 1)
+                              : null,
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => LoanDetailsScreen(debt: debt)),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
                                 children: [
-                                  Text('${DateFormat('dd MMM').format(debt.date)}${debt.dueDate != null ? ' • Due: ${DateFormat('dd MMM').format(debt.dueDate!)}' : ''}'),
-                                  if (isOverdue)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4.0),
-                                      child: Text(
-                                        'Overdue by ${DateTime.now().difference(debt.dueDate!).inDays} days',
-                                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Avatar
+                                      Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                          color: debt.isSettled 
+                                            ? Colors.grey.withOpacity(0.1) 
+                                            : isLent ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2), // Green-100 / Red-100
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            debt.personName.isNotEmpty ? debt.personName[0].toUpperCase() : '?',
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: debt.isSettled 
+                                                ? Colors.grey 
+                                                : isLent ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  
-                                  // Payoff Progress Bar
-                                  Builder(
-                                    builder: (context) {
-                                      // Calculate progress
-                                      // If principalAmount is stored, use it. Else roughly estimate Total = Amount + Paid.
-                                      // Note: Amount is "Outstanding". 
-                                      double totalPaid = debt.payments.fold(0.0, (sum, p) => sum + p.amount);
-                                      double currentOutstanding = debt.amount;
+                                      const SizedBox(width: 16),
                                       
-                                      // Total Loan Value
-                                      double totalValue = (debt.principalAmount > 0) ? debt.principalAmount : (currentOutstanding + totalPaid);
-                                      
-                                      // If no payments yet and principal not set, effectively 0 progress
-                                      if (totalValue <= 0) totalValue = currentOutstanding; 
-                                      if (totalValue <= 0) return const SizedBox.shrink(); // Should not happen for valid debt
-
-                                      double progress = (totalPaid / totalValue).clamp(0.0, 1.0);
-                                      
-                                      // If it's a simple debt without payments tracking, and just edited amount? 
-                                      // The complexity of tracking "Paid via edit" vs "Paid via Payment" exists.
-                                      // But let's assume standard flow uses Payments.
-                                      // If progress is 0, maybe hide? No, show empty bar to encourage payment.
-                                      
-                                      Color progressColor = type == 'Lent' ? Colors.green : Colors.orange;
-                                      
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 8.0),
+                                      // Details
+                                      Expanded(
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            ClipRRect(
-                                              borderRadius: BorderRadius.circular(4),
-                                              child: LinearProgressIndicator(
-                                                value: progress,
-                                                backgroundColor: Colors.grey[200],
-                                                color: progressColor,
-                                                minHeight: 6,
-                                              ),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(
+                                                  debt.personName,
+                                                  style: theme.textTheme.titleMedium?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                    decoration: debt.isSettled ? TextDecoration.lineThrough : null,
+                                                    color: debt.isSettled ? theme.colorScheme.outline : null,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '₹${debt.amount.toStringAsFixed(0)}',
+                                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: debt.isSettled ? theme.colorScheme.outline : null,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                             const SizedBox(height: 4),
-                                            Text(
-                                              'Paid: ${(progress * 100).toStringAsFixed(0)}% • Remaining: ₹${currentOutstanding.toStringAsFixed(0)}',
-                                              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.calendar_today_rounded, size: 12, color: theme.colorScheme.outline),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  DateFormat('MMM d').format(debt.date),
+                                                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                                                ),
+                                                if (debt.dueDate != null && !debt.isSettled) ...[
+                                                  const SizedBox(width: 8),
+                                                  Container(width: 4, height: 4, decoration: BoxDecoration(color: theme.colorScheme.outline, shape: BoxShape.circle)),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'Due ${DateFormat('MMM d').format(debt.dueDate!)}',
+                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                      color: isOverdue ? theme.colorScheme.error : theme.colorScheme.outline,
+                                                      fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                                                    ),
+                                                  ),
+                                                ]
+                                              ],
                                             ),
                                           ],
                                         ),
-                                      );
-                                    }
+                                      ),
+                                    ],
                                   ),
-                                ],
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      '₹${debt.amount.toStringAsFixed(0)}',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        decoration: debt.isSettled ? TextDecoration.lineThrough : null,
-                                      ),
-                                    ),
-                                    if (!debt.isSettled)
-                                      Text(
-                                        'Tap to Pay/Edit',
-                                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(width: 8),
-                                PopupMenuButton<String>(
-                                  onSelected: (value) async {
-                                    if (value == 'edit') {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => AddDebtScreen(debt: debt)),
-                                      );
-                                    } else if (value == 'pay') {
-                                      _showPayEmiDialog(context, ref, debt);
-                                    } else if (value == 'settle') {
-                                      _showSettleDialog(context, ref, debt);
-                                    } else if (value == 'delete') {
-                                      _showDeleteDialog(context, ref, debt);
-                                    } else if (value == 'share_msg') {
-                                      _shareReminder(debt);
-                                    } else if (value == 'share_pdf') {
-                                      await PdfService().generateDebtStatement(debt);
-                                    }
-                                  },
-                                  itemBuilder: (BuildContext context) {
-                                    final List<PopupMenuItem<String>> items = [];
-                                    
-                                    if (!debt.isSettled && type == 'Lent') {
-                                       items.add(const PopupMenuItem<String>(
-                                          value: 'share_msg',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.share, color: Colors.green),
-                                              SizedBox(width: 8),
-                                              Text('WhatsApp / Share Reminder'),
-                                            ],
-                                          ),
-                                        ));
-                                    }
+                                  
+                                  // Progress Bar (if active)
+                                  if (!debt.isSettled) ...[
+                                    const SizedBox(height: 16),
+                                    Builder(
+                                      builder: (context) {
+                                        double totalPaid = debt.payments.fold(0.0, (sum, p) => sum + p.amount);
+                                        double currentOutstanding = debt.amount;
+                                        double totalValue = (debt.principalAmount > 0) ? debt.principalAmount : (currentOutstanding + totalPaid);
+                                        if (totalValue <= 0) totalValue = currentOutstanding;
+                                        if (totalValue <= 0) return const SizedBox.shrink();
 
-                                    items.add(const PopupMenuItem<String>(
-                                      value: 'share_pdf',
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.picture_as_pdf, color: Colors.red),
-                                          SizedBox(width: 8),
-                                          Text('Generate Statement'),
-                                        ],
-                                      ),
-                                    ));
-
-                                    if (debt.isSettled) {
-                                      items.add(const PopupMenuItem<String>(
-                                        value: 'delete',
-                                        child: Row(
+                                        double progress = (totalPaid / totalValue).clamp(0.0, 1.0);
+                                        
+                                        return Column(
                                           children: [
-                                            Icon(Icons.delete, color: Colors.red),
-                                            SizedBox(width: 8),
-                                            Text('Delete'),
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(6),
+                                              child: LinearProgressIndicator(
+                                                value: progress,
+                                                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                                                color: isLent ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                                minHeight: 8,
+                                              ),
+                                            ),
+                                            if (progress > 0)
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 6),
+                                                child: Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                  children: [
+                                                    Text(
+                                                      'Paid ${(progress * 100).toStringAsFixed(0)}%',
+                                                      style: TextStyle(fontSize: 12, color: theme.colorScheme.outline, fontWeight: FontWeight.w500),
+                                                    ),
+                                                    Text(
+                                                      '${(100 - progress * 100).toStringAsFixed(0)}% Remaining',
+                                                      style: TextStyle(fontSize: 12, color: theme.colorScheme.outline),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
                                           ],
+                                        );
+                                      }
+                                    ),
+                                    
+                                    // Quick Actions Row
+                                    const SizedBox(height: 12),
+                                    const Divider(height: 1),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        _ActionButton(
+                                          icon: Icons.edit_rounded, 
+                                          label: 'Edit', 
+                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => AddDebtScreen(debt: debt)))
                                         ),
-                                      ));
-                                    } else {
-                                      items.addAll([
-                                        const PopupMenuItem<String>(
-                                          value: 'pay',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.payment, color: Colors.blue),
-                                              SizedBox(width: 8),
-                                              Text('Pay EMI / Reduce'),
-                                            ],
-                                          ),
+                                        Container(width: 1, height: 24, color: theme.colorScheme.outlineVariant),
+                                        _ActionButton(
+                                          icon: Icons.payment_rounded, 
+                                          label: isLent ? 'Receive' : 'Pay', 
+                                          onTap: () => _showPayEmiDialog(context, ref, debt),
+                                          color: isLent ? Colors.green : Colors.blue,
                                         ),
-                                        const PopupMenuItem<String>(
-                                          value: 'edit',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.edit, color: Colors.orange),
-                                              SizedBox(width: 8),
-                                              Text('Edit'),
-                                            ],
-                                          ),
+                                        Container(width: 1, height: 24, color: theme.colorScheme.outlineVariant),
+                                        _ActionButton(
+                                          icon: Icons.more_horiz_rounded, 
+                                          label: 'More', 
+                                          onTap: () => _showMoreOptions(context, ref, debt, isLent),
                                         ),
-                                        const PopupMenuItem<String>(
-                                          value: 'settle',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.check_circle, color: Colors.green),
-                                              SizedBox(width: 8),
-                                              Text('Mark Settled'),
-                                            ],
-                                          ),
-                                        ),
-                                        const PopupMenuItem<String>(
-                                          value: 'delete',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.delete, color: Colors.red),
-                                              SizedBox(width: 8),
-                                              Text('Delete'),
-                                            ],
-                                          ),
-                                        ),
-                                      ]);
-                                    }
-                                    return items;
-                                  },
-                                ),
-                              ],
+                                      ],
+                                    )
+                                  ],
+                                ],
+                              ),
                             ),
-                            onTap: () {
-                               Navigator.push(
-                                 context,
-                                 MaterialPageRoute(builder: (context) => LoanDetailsScreen(debt: debt)),
-                               );
-                            },
                           ),
                         );
                       },
@@ -335,6 +362,42 @@ class DebtTab extends ConsumerWidget {
       error: (e, _) => Center(child: Text('Error: $e')),
     );
   }
+
+  void _showMoreOptions(BuildContext context, WidgetRef ref, DebtModel debt, bool isLent) {
+     showModalBottomSheet(
+       context: context,
+       builder: (ctx) => Container(
+         padding: const EdgeInsets.all(16),
+         child: Column(
+           mainAxisSize: MainAxisSize.min,
+           children: [
+             if (!debt.isSettled && isLent)
+               ListTile(
+                 leading: const Icon(Icons.share, color: Colors.green),
+                 title: const Text('Share Reminder'),
+                 onTap: () { Navigator.pop(ctx); _shareReminder(debt); },
+               ),
+             ListTile(
+               leading: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+               title: const Text('Generate PDF Statement'),
+               onTap: () async { Navigator.pop(ctx); await PdfService().generateDebtStatement(debt); },
+             ),
+             ListTile(
+               leading: const Icon(Icons.check_circle_outline, color: Colors.blue),
+               title: const Text('Mark as Settled'),
+               onTap: () { Navigator.pop(ctx); _showSettleDialog(context, ref, debt); },
+             ),
+             ListTile(
+               leading: const Icon(Icons.delete_outline, color: Colors.red),
+               title: const Text('Delete Record'),
+               onTap: () { Navigator.pop(ctx); _showDeleteDialog(context, ref, debt); },
+             ),
+           ],
+         ),
+       )
+     );
+  }
+
 
   void _shareReminder(DebtModel debt) {
     if (debt.isSettled) return;
@@ -478,6 +541,38 @@ class DebtTab extends ConsumerWidget {
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+
+  const _ActionButton({required this.icon, required this.label, required this.onTap, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: color ?? theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(
+              fontSize: 12, 
+              fontWeight: FontWeight.w500,
+              color: color ?? theme.colorScheme.onSurfaceVariant
+            )),
+          ],
+        ),
       ),
     );
   }

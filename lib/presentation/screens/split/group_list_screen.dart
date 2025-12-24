@@ -74,13 +74,13 @@ class GroupListScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      const PopupMenuItem<String>(
+                      PopupMenuItem<String>(
                         value: 'delete',
                         child: Row(
                           children: [
-                            Icon(Icons.delete, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete'),
+                            Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
+                            const SizedBox(width: 8),
+                            const Text('Delete'),
                           ],
                         ),
                       ),
@@ -178,7 +178,7 @@ class GroupListScreen extends ConsumerWidget {
               ref.read(splitGroupsProvider.notifier).deleteGroup(group.id);
               Navigator.pop(ctx);
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('Delete'),
           ),
         ],

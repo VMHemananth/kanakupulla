@@ -8,7 +8,10 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../providers/yearly_stats_provider.dart';
 import '../providers/expense_provider.dart';
 import '../../data/repositories/expense_repository.dart';
+import '../../data/models/expense_model.dart';
 import '../../data/repositories/salary_repository.dart';
+import '../../data/repositories/salary_repository.dart';
+import '../../core/utils/financial_calculator.dart';
 import 'monthly_detailed_report_screen.dart';
 
 class YearlyReportScreen extends ConsumerStatefulWidget {
@@ -30,7 +33,7 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
     final allSalaries = await ref.read(salaryRepositoryProvider).getSalaries();
 
     // Filter for selected year
-    final yearExpenses = allExpenses.where((e) => e.date.year == _selectedYear).toList();
+    final yearExpenses = allExpenses.where((e) => e.date.year == _selectedYear && !e.isCreditCardBill).toList();
     final yearIncome = allSalaries.where((s) => s.date.year == _selectedYear).toList();
 
     // Helper to get PDF Color from String category
@@ -630,6 +633,8 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
     final theme = Theme.of(context);
     // Filter expenses for current year
     final expenses = allExpenses.where((e) => e.date.year == _selectedYear).toList();
+    // Logic: Compare Avg Spend of [first 3 available months] vs [last 3 available months]
+    // Filter out bills for consumption logic (if not done by calculator usage below)
     if (expenses.isEmpty) return const SizedBox.shrink();
 
     // Use stats to determine active months
@@ -670,8 +675,9 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
     double getAvgForCategory(List<int> targetMonths, String category) {
       double total = 0;
       for (var m in targetMonths) {
-        final monthlyExp = expenses.where((e) => e.date.month == m && e.category == category);
-        final sum = monthlyExp.fold(0.0, (s, e) => s + e.amount);
+        final monthlyExp = expenses.where((e) => e.date.month == m && e.category == category).cast<ExpenseModel>().toList();
+        // Use FinancialCalculator to sum valid expenses (excluding bills)
+        final sum = FinancialCalculator.calculateTotalExpense(monthlyExp);
         total += sum;
       }
       return targetMonths.isEmpty ? 0 : total / targetMonths.length;

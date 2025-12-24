@@ -7,6 +7,7 @@ import '../../data/repositories/salary_repository.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/models/salary_model.dart';
 import '../../core/utils/category_colors.dart';
+import '../../core/utils/financial_calculator.dart';
 
 class MonthlyDetailedReportScreen extends ConsumerStatefulWidget {
   final int month;
@@ -96,10 +97,12 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
     );
   }
 
+
+
   Widget _buildOverviewTab(ThemeData theme) {
-    double totalIncome = _incomes.fold(0, (sum, e) => sum + e.amount);
-    double totalExpense = _expenses.fold(0, (sum, e) => sum + e.amount);
-    double savings = totalIncome - totalExpense;
+    double totalIncome = FinancialCalculator.calculateTotalIncome(_incomes);
+    double totalExpense = FinancialCalculator.calculateTotalExpense(_expenses);
+    double savings = FinancialCalculator.calculateNetSavings(totalIncome, totalExpense);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -301,8 +304,8 @@ class _MonthlyDetailedReportScreenState extends ConsumerState<MonthlyDetailedRep
     double total = 0;
     
     for (var e in _expenses) {
-       // Assuming standard logic:
-       if (e.paymentMethod == 'Credit Card' && !e.isCreditCardBill) continue; 
+       // Correct Logic: Count Consumption (Purchases), Exclude Bill Payments
+       if (e.isCreditCardBill) continue; 
        
        catTotals[e.category] = (catTotals[e.category] ?? 0) + e.amount;
        total += e.amount;

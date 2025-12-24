@@ -5,6 +5,7 @@ import '../providers/expense_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/salary_provider.dart';
 import '../providers/credit_card_provider.dart';
+import '../providers/category_provider.dart';
 import '../screens/credit_usage_details_screen.dart';
 
 class SavingsRateCard extends ConsumerWidget {
@@ -36,78 +37,111 @@ class SavingsRateCard extends ConsumerWidget {
             expensesAsync.when(
               data: (expenses) => incomeAsync.when(
                 data: (incomes) {
-                  final totalIncome = incomes.fold(0.0, (sum, e) => sum + e.amount);
-                  final totalExpense = expenses.fold(0.0, (sum, e) {
-                      if (e.isCreditCardBill) return sum; 
-                      return sum + e.amount;
-                  });
+                  final categoriesAsync = ref.watch(categoryProvider);
+                  return categoriesAsync.when(
+                    data: (categories) {
+                      final totalIncome = incomes.fold(0.0, (sum, e) => sum + e.amount);
+                      
+                      // Create a map for quick lookup
+                      final categoryTypeMap = {for (var c in categories) c.name: c.type};
 
-                  if (totalIncome == 0) {
-                    return Text(
-                      'Add income to track savings rate',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary),
-                    );
-                  }
+                      // Calculate Allocated Savings (Investments + Savings Category)
+                      double allocatedSavings = 0;
+                      for (var e in expenses) {
+                        final type = categoryTypeMap[e.category];
+                        if (type == 'Savings') {
+                           allocatedSavings += e.amount;
+                        }
+                      }
 
-                  final savings = totalIncome - totalExpense;
-                  final rate = (savings / totalIncome).clamp(0.0, 1.0);
-                  final percentage = (rate * 100).toStringAsFixed(1);
-                  
-                  Color color = AppTheme.tertiaryColor;
-                  String message = "You're overspending!";
-                  if (rate >= 0.3) {
-                    color = const Color(0xFFFFD700); // Gold
-                    message = "Excellent! You're in the club! 🏆";
-                  } else if (rate >= 0.2) {
-                    color = AppTheme.secondaryColor;
-                    message = "Good! Push for 30%";
-                  } else if (rate >= 0.1) {
-                    color = Colors.orange;
-                    message = "Start cutting 'Wants'";
-                  }
+                      if (totalIncome == 0) {
+                        return Text(
+                          'Add income to track savings rate',
+                          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary),
+                        );
+                      }
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // Rate based on Allocated Savings
+                      final rate = (allocatedSavings / totalIncome).clamp(0.0, 1.0);
+                      final percentage = (rate * 100).toStringAsFixed(1);
+                      
+                      Color color = AppTheme.tertiaryColor;
+                      String message = "Boost your savings!";
+                      IconData icon = Icons.savings_outlined;
+
+                      if (rate >= 0.3) {
+                        color = const Color(0xFFFFD700); // Gold
+                        message = "Excellent! You're in the club! 🏆";
+                        icon = Icons.emoji_events_rounded;
+                      } else if (rate >= 0.2) {
+                        color = AppTheme.secondaryColor;
+                        message = "Good! Keep pushing for 30%";
+                        icon = Icons.thumb_up_rounded;
+                      } else if (rate >= 0.1) {
+                        color = Colors.orange;
+                        message = "You're getting there.";
+                        icon = Icons.trending_up_rounded;
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('$percentage%', 
-                            style: theme.textTheme.displaySmall?.copyWith(
-                              color: color, 
-                              fontWeight: FontWeight.w800
-                            )
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('$percentage%', 
+                                    style: theme.textTheme.displayMedium?.copyWith(
+                                      color: color, 
+                                      fontWeight: FontWeight.w800
+                                    )
+                                  ),
+                                  Text(
+                                    'Saved: ₹${allocatedSavings.toStringAsFixed(0)}',
+                                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(icon, color: color, size: 28),
+                              ),
+                            ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: color.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: LinearProgressIndicator(
+                              value: rate,
+                              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                              valueColor: AlwaysStoppedAnimation<Color>(color),
+                              minHeight: 12,
                             ),
-                            child: Text('Goal: 30%', 
-                              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)
-                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(message, 
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: color, 
+                                  fontWeight: FontWeight.w600
+                                )
+                              ),
+                              Text('Goal: 30%', style: theme.textTheme.bodySmall),
+                            ],
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                          value: rate,
-                          backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                          valueColor: AlwaysStoppedAnimation<Color>(color),
-                          minHeight: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(message, 
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: color, 
-                          fontWeight: FontWeight.w600
-                        )
-                      ),
-                    ],
+                      );
+                    },
+                    loading: () => const LinearProgressIndicator(),
+                    error: (_,__) => const SizedBox.shrink(),
                   );
                 },
                 loading: () => const LinearProgressIndicator(),
