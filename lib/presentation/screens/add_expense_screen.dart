@@ -9,6 +9,8 @@ import '../providers/user_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/credit_card_provider.dart';
 import '../providers/savings_provider.dart';
+import '../providers/time_cost_provider.dart';
+import '../providers/salary_provider.dart';
 import '../../data/services/ocr_service.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -492,20 +494,45 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               const SizedBox(height: 48),
 
               // Save Button
-              FilledButton(
-                onPressed: _saveExpense,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 8,
-                  shadowColor: theme.colorScheme.primary.withOpacity(0.4),
-                ),
-                child: Text(
-                  widget.expense == null ? 'Save Transaction' : 'Update Transaction',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _showEstimation,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        side: BorderSide(color: theme.colorScheme.primary, width: 2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                      child: Text(
+                        'Estimate',
+                        style: TextStyle(
+                          fontSize: 16, 
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _saveExpense,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        elevation: 8,
+                        shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+                      ),
+                      child: Text(
+                        widget.expense == null ? 'Save' : 'Update',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               
               if (widget.expense != null) ...[
@@ -615,5 +642,165 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         ],
       ),
     );
+  }
+
+  void _showEstimation() async {
+    final amountText = _amountController.text;
+    if (amountText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter amount first')));
+      return;
+    }
+    final amount = double.tryParse(amountText);
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid amount')));
+      return;
+    }
+
+    final theme = Theme.of(context);
+
+    // 1. Time to Earn
+    final dummyExpense = ExpenseModel(
+      id: '',
+      title: _titleController.text.isEmpty ? 'Estimation' : _titleController.text,
+      amount: amount,
+      date: _selectedDate,
+      category: _selectedCategory ?? 'General',
+      isNeed: false,
+    );
+    
+    final timeCostService = ref.read(timeCostProvider);
+    final timeToEarn = await timeCostService.calculateTimeCost(dummyExpense);
+
+    // 2. Remaining Balance & Sustainability
+    final salaries = ref.read(salaryProvider).value ?? [];
+    final expenses = ref.read(expensesProvider).value ?? [];
+    
+    final currentMonth = _selectedDate;
+    final monthlyIncome = salaries.where((s) => s.date.year == currentMonth.year && s.date.month == currentMonth.month).fold(0.0, (sum, s) => sum + s.amount);
+    
+    // Exclude current expense being edited if any (to avoid double counting if we were real-time updating, but here we estimate ADDING this expense)
+    // Actually, if we are editing, we should probably exclude the OLD amount. But for now let's assume "Impact of this *transaction*".
+    // "Estimate how much time should spend to get THIS expense".
+    
+    final monthlyExpenses = expenses.where((e) => 
+      e.date.year == currentMonth.year && 
+      e.date.month == currentMonth.month && 
+      (widget.expense == null || e.id != widget.expense!.id) // Exclude self if editing
+    ).fold(0.0, (sum, e) => sum + e.amount);
+
+    final currentBalance = monthlyIncome - monthlyExpenses; // Balance BEFORE this transaction
+    final newBalance = currentBalance - amount;
+    
+    final remainingPercentage = monthlyIncome > 0 
+        ? ((newBalance / monthlyIncome) * 100).clamp(0.0, 100.0)
+        : 0.0;
+    
+    // Days remaining
+    final lastDay = DateTime(currentMonth.year, currentMonth.month + 1, 0).day;
+    final daysRemaining = lastDay - currentMonth.day; 
+    final safeDailySpend = daysRemaining > 0 ? (newBalance / daysRemaining) : newBalance;
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.analytics_rounded, color: theme.colorScheme.primary, size: 28),
+                const SizedBox(width: 12),
+                Text("Expense Impact", style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            _buildImpactRow(
+              context, 
+              "Time to Earn", 
+              timeToEarn.isEmpty ? "Unknown" : timeToEarn, 
+              Icons.timer_rounded,
+              "Time worked to afford this"
+            ),
+            const SizedBox(height: 16),
+            
+            _buildImpactRow(
+              context, 
+              "Remaining Budget", 
+              "${remainingPercentage.toStringAsFixed(1)}%", 
+              Icons.pie_chart_rounded,
+              "Of monthly income remaining"
+            ),
+            const SizedBox(height: 16),
+            
+            _buildImpactRow(
+              context, 
+              "Sustainability", 
+              "₹${safeDailySpend.toStringAsFixed(0)} / day", 
+              Icons.balance_rounded,
+              "Safe daily spend for remaining ${daysRemaining} days"
+            ),
+            
+            if (newBalance < 0) ...[
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "This expense exceeds your monthly income!", 
+                        style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.bold)
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            ],
+            const SizedBox(height: 16),
+          ]
+        ),
+      )
+    );
+  }
+
+  Widget _buildImpactRow(BuildContext context, String label, String value, IconData icon, String subtitle) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: theme.colorScheme.primary),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+              Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+        Text(value, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+      ],
+    );
+
   }
 }

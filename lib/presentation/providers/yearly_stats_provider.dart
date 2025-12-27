@@ -49,8 +49,9 @@ class YearlyStatsNotifier extends StateNotifier<AsyncValue<List<MonthlyStat>>> {
           e.date.year == _year && e.date.month == month
         ).toList();
         
-        // Calculate total expense using standardized logic
-        final totalExpense = FinancialCalculator.calculateTotalExpense(monthlyExpenses);
+        // Calculate total expense using Cash Flow Logic (Money leaving bank)
+        // This avoids double counting Credit Card usage + Bill Payment
+        final totalExpense = FinancialCalculator.calculateCashOutflow(monthlyExpenses);
 
         // Filter income for this month and year
         final monthlyIncome = allSalaries.where((e) => 

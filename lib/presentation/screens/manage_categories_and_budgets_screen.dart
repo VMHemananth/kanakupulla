@@ -4,7 +4,8 @@ import 'manage_categories_screen.dart';
 import 'category_budget_screen.dart';
 
 class ManageCategoriesAndBudgetsScreen extends StatefulWidget {
-  const ManageCategoriesAndBudgetsScreen({super.key});
+  final int initialIndex;
+  const ManageCategoriesAndBudgetsScreen({super.key, this.initialIndex = 0});
 
   @override
   State<ManageCategoriesAndBudgetsScreen> createState() => _ManageCategoriesAndBudgetsScreenState();
@@ -16,7 +17,7 @@ class _ManageCategoriesAndBudgetsScreenState extends State<ManageCategoriesAndBu
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialIndex);
     _tabController.addListener(() {
       setState(() {});
     });

@@ -33,7 +33,9 @@ class _YearlyReportScreenState extends ConsumerState<YearlyReportScreen> {
     final allSalaries = await ref.read(salaryRepositoryProvider).getSalaries();
 
     // Filter for selected year
-    final yearExpenses = allExpenses.where((e) => e.date.year == _selectedYear && !e.isCreditCardBill).toList();
+    // Filter for selected year - CASH FLOW LOGIC
+    // We exclude Credit Card spending (Liability) and include Bill Payments (Cash Out)
+    final yearExpenses = allExpenses.where((e) => e.date.year == _selectedYear && e.paymentMethod != 'Credit Card').toList();
     final yearIncome = allSalaries.where((s) => s.date.year == _selectedYear).toList();
 
     // Helper to get PDF Color from String category

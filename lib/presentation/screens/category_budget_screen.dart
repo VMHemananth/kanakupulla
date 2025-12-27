@@ -13,6 +13,7 @@ import '../../data/models/expense_model.dart';
 import '../../data/models/category_model.dart';
 import '../../data/models/budget_model.dart';
 import '../../core/theme/app_theme.dart';
+import '../providers/budget_rule_provider.dart';
 
 class CategoryBudgetScreen extends StatelessWidget {
   const CategoryBudgetScreen({super.key});
@@ -148,10 +149,13 @@ class _CategoryBudgetListWidgetState extends ConsumerState<CategoryBudgetListWid
         return;
       }
 
+      // Get Custom Rule
+      final rule = ref.read(budgetRuleProvider);
+
       // Calculate Pools
-      final needsPool = monthlyLimit * 0.50;
-      final wantsPool = monthlyLimit * 0.30;
-      final savingsPool = monthlyLimit * 0.20;
+      final needsPool = monthlyLimit * (rule.needs / 100);
+      final wantsPool = monthlyLimit * (rule.wants / 100);
+      final savingsPool = monthlyLimit * (rule.savings / 100);
 
       // Group Categories
       final needsCats = categories.where((c) => c.type == 'Need').toList();
@@ -214,6 +218,7 @@ class _CategoryBudgetListWidgetState extends ConsumerState<CategoryBudgetListWid
     final categoriesAsync = ref.watch(categoryProvider);
     final budgetsAsync = ref.watch(categoryBudgetsProvider);
     final monthlyBudgetAsync = ref.watch(budgetProvider);
+    final budgetRule = ref.watch(budgetRuleProvider);
     final theme = Theme.of(context);
 
     // Combine loading states
@@ -316,7 +321,7 @@ class _CategoryBudgetListWidgetState extends ConsumerState<CategoryBudgetListWid
             child: FilledButton.icon(
               onPressed: () => _autoAllocate(remainingAllocatable, categories),
               icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('Smart Distribute (50/30/20)'),
+              label: Text('Smart Distribute (${budgetRule.needs.round()}/${budgetRule.wants.round()}/${budgetRule.savings.round()})'),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.secondaryContainer,
                 foregroundColor: theme.colorScheme.onSecondaryContainer,
@@ -332,9 +337,9 @@ class _CategoryBudgetListWidgetState extends ConsumerState<CategoryBudgetListWid
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-               _buildCategoryGroup('Needs (50%)', categories.where((c) => c.type == 'Need').toList(), remainingAllocatable, monthlyLimit, theme),
-               _buildCategoryGroup('Wants (30%)', categories.where((c) => c.type == 'Want' || c.type == 'General').toList(), remainingAllocatable, monthlyLimit, theme),
-               _buildCategoryGroup('Savings (20%)', categories.where((c) => c.type == 'Savings').toList(), remainingAllocatable, monthlyLimit, theme),
+               _buildCategoryGroup('Needs (${budgetRule.needs.round()}%)', categories.where((c) => c.type == 'Need').toList(), remainingAllocatable, monthlyLimit, theme),
+               _buildCategoryGroup('Wants (${budgetRule.wants.round()}%)', categories.where((c) => c.type == 'Want' || c.type == 'General').toList(), remainingAllocatable, monthlyLimit, theme),
+               _buildCategoryGroup('Savings (${budgetRule.savings.round()}%)', categories.where((c) => c.type == 'Savings').toList(), remainingAllocatable, monthlyLimit, theme),
             ],
           ),
         ),

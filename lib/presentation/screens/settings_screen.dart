@@ -17,6 +17,8 @@ import 'dart:io';
 import '../../data/repositories/settings_repository.dart';
 import '../providers/app_lock_provider.dart';
 
+import 'budget_rule_settings_screen.dart';
+
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -228,6 +230,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const Divider(),
 
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.pie_chart_outline),
+                  title: const Text('Budget Rules'),
+                  subtitle: const Text('Customize 50/30/20 rule'),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (c) => const BudgetRuleSettingsScreen()));
+                  },
+                ),
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.backup),

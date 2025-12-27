@@ -45,30 +45,33 @@ class IncomeExpenseGauge extends ConsumerWidget {
           data: (expenses) {
              final income = incomeAsync.value?.fold(0.0, (sum, i) => sum + i.amount) ?? 0.0;
              
-             double totalExpense = 0;
-             double cashOutflow = 0;
+              double totalExpense = 0;
+              double cashOutflow = 0;
 
-             if (expenses.isNotEmpty) {
-               for (var e in expenses) {
-                  // 1. Consumption: Exclude Bill Payments (Logic fixed in Step 11)
-                  if (!e.isCreditCardBill) {
-                    totalExpense += e.amount;
-                  }
-                  
-                  // 2. Cash Outflow: Exclude Credit Card Purchases (Liability, not Cash)
-                  //    Include Bill Payments (Cash leaving bank)
-                  if (e.paymentMethod != 'Credit Card') {
-                    cashOutflow += e.amount;
-                  }
-               }
-             }
+              if (expenses.isNotEmpty) {
+                for (var e in expenses) {
+                   // 1. Consumption: Exclude Bill Payments
+                   if (!e.isCreditCardBill) {
+                     totalExpense += e.amount;
+                   }
+                   
+                   // 2. Cash Outflow: Exclude Credit Card Purchases (Liability, not Cash)
+                   //    Include Bill Payments (Cash leaving bank)
+                   if (e.paymentMethod != 'Credit Card') {
+                     cashOutflow += e.amount;
+                   }
+                }
+              }
 
-             final balance = income - cashOutflow;
-             
-             final budgetAsync = ref.watch(budgetProvider);
-             final budget = budgetAsync.value?.amount ?? 0.0;
-             final budgetPercentage = budget > 0 ? (totalExpense / budget).clamp(0.0, 1.0) : 0.0;
-             final budgetLeft = budget - totalExpense;
+              final balance = income - cashOutflow;
+              
+              // FIX: Use cashOutflow for the "Expense" display in Balance Box to match Balance calculation
+              final displayExpense = cashOutflow;
+
+              final budgetAsync = ref.watch(budgetProvider);
+              final budget = budgetAsync.value?.amount ?? 0.0;
+              final budgetPercentage = budget > 0 ? (totalExpense / budget).clamp(0.0, 1.0) : 0.0;
+              final budgetLeft = budget - totalExpense;
 
              return Column(
                crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,7 +179,7 @@ class IncomeExpenseGauge extends ConsumerWidget {
                            ),
                            const SizedBox(height: 12),
                            Text(
-                             '₹${totalExpense >= 10000 ? '${(totalExpense/1000).toStringAsFixed(1)}k' : totalExpense.toStringAsFixed(0)}',
+                             '₹${displayExpense >= 10000 ? '${(displayExpense/1000).toStringAsFixed(1)}k' : displayExpense.toStringAsFixed(0)}',
                              style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)
                            ),
                          ],

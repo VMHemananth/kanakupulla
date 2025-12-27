@@ -668,7 +668,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
              Navigator.push(context, MaterialPageRoute(builder: (context) => const IncomeListScreen()));
           }),
           _buildActionButton(context, Icons.savings, 'Budget', () {
-             Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageCategoriesAndBudgetsScreen()));
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const ManageCategoriesAndBudgetsScreen(initialIndex: 1)));
           }),
           _buildActionButton(context, Icons.list_alt, 'Transactions', () {
              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));

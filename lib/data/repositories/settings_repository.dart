@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
+import '../models/budget_rule_model.dart';
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   throw UnimplementedError('Initialize this provider in main');
@@ -68,5 +69,18 @@ class SettingsRepository {
 
   bool isAppLockEnabled() {
     return _prefs.getBool('isAppLockEnabled') ?? false;
+  }
+
+  Future<void> saveBudgetRule(BudgetRuleModel rule) async {
+    await _prefs.setDouble('budget_needs', rule.needs);
+    await _prefs.setDouble('budget_wants', rule.wants);
+    await _prefs.setDouble('budget_savings', rule.savings);
+  }
+
+  BudgetRuleModel getBudgetRule() {
+    final needs = _prefs.getDouble('budget_needs') ?? 50.0;
+    final wants = _prefs.getDouble('budget_wants') ?? 30.0;
+    final savings = _prefs.getDouble('budget_savings') ?? 20.0;
+    return BudgetRuleModel(needs: needs, wants: wants, savings: savings);
   }
 }

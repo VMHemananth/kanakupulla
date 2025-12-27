@@ -12,6 +12,17 @@ class FinancialCalculator {
     });
   }
 
+  /// Calculates "Cash Flow" Expense (Money leaving the bank).
+  /// Excludes Credit Card swipes (Liability).
+  /// Includes Credit Card Bill Payments (Settlement).
+  /// This prevents double counting when 'isCreditCardBill' is not reliably set.
+  static double calculateCashOutflow(List<ExpenseModel> expenses) {
+    return expenses.fold(0.0, (sum, e) {
+      if (e.paymentMethod == 'Credit Card') return sum;
+      return sum + e.amount;
+    });
+  }
+
   /// Calculates total income.
   static double calculateTotalIncome(List<SalaryModel> income) {
     return income.fold(0.0, (sum, i) => sum + i.amount);

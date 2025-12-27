@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/category_model.dart';
 import '../providers/category_provider.dart';
+import '../providers/budget_rule_provider.dart';
 
 class ManageCategoriesScreen extends StatelessWidget {
   const ManageCategoriesScreen({super.key});
@@ -88,6 +89,8 @@ void showAddCategoryDialog(BuildContext context, WidgetRef ref, {CategoryModel? 
   final nameController = TextEditingController(text: category?.name ?? '');
   String selectedType = category?.type ?? 'Want';
 
+  final budgetRule = ref.read(budgetRuleProvider); // Get current rules
+
   showDialog(
     context: context,
     builder: (ctx) => StatefulBuilder(
@@ -104,10 +107,10 @@ void showAddCategoryDialog(BuildContext context, WidgetRef ref, {CategoryModel? 
             DropdownButtonFormField<String>(
               value: selectedType,
               decoration: const InputDecoration(labelText: 'Type'),
-              items: const [
-                DropdownMenuItem(value: 'Need', child: Text('Need (50%)')),
-                DropdownMenuItem(value: 'Want', child: Text('Want (30%)')),
-                DropdownMenuItem(value: 'Savings', child: Text('Savings (20%)')),
+              items: [
+                DropdownMenuItem(value: 'Need', child: Text('Need (${budgetRule.needs.toStringAsFixed(0)}%)')),
+                DropdownMenuItem(value: 'Want', child: Text('Want (${budgetRule.wants.toStringAsFixed(0)}%)')),
+                DropdownMenuItem(value: 'Savings', child: Text('Savings (${budgetRule.savings.toStringAsFixed(0)}%)')),
               ],
               onChanged: (val) => setState(() => selectedType = val!),
             ),

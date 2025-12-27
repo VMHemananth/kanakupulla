@@ -9,12 +9,21 @@ import '../providers/date_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/expense_model.dart';
 import 'next_month_estimation_screen.dart';
+import '../providers/budget_rule_provider.dart';
+import '../../data/models/budget_rule_model.dart';
 
-class AnalysisScreen extends ConsumerWidget {
+class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AnalysisScreen> createState() => _AnalysisScreenState();
+}
+
+class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
+  String _selectedPaymentFilter = 'All'; // 'All', 'Credit', 'Cash'
+
+  @override
+  Widget build(BuildContext context) {
     // Redesign: "Spending Controller"
     // Focus: Proactive Daily Control
     
@@ -43,6 +52,22 @@ class AnalysisScreen extends ConsumerWidget {
             },
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                _buildFilterChip('All', 'All'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Cash/Bank', 'Cash'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Credit Card', 'Credit'),
+              ],
+            ),
+          ),
+        ),
       ),
       body: expensesAsync.when(
         data: (expenses) => incomeAsync.when(
@@ -53,6 +78,7 @@ class AnalysisScreen extends ConsumerWidget {
               incomes, 
               categories, 
               ref.watch(selectedDateProvider),
+              ref.watch(budgetRuleProvider),
             ),
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
@@ -66,22 +92,59 @@ class AnalysisScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildFilterChip(String label, String value) {
+    final isSelected = _selectedPaymentFilter == value;
+    final theme = Theme.of(context);
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (bool selected) {
+        if (selected) {
+          setState(() {
+            _selectedPaymentFilter = value;
+          });
+        }
+      },
+      checkmarkColor: theme.colorScheme.onPrimary,
+      selectedColor: theme.colorScheme.primary,
+      labelStyle: TextStyle(
+        color: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
+  }
+
   Widget _buildAdvisorBody(
     BuildContext context, 
     List<dynamic> expenses, 
     List<dynamic> incomes, 
     List<CategoryModel> categories,
     DateTime date,
+    BudgetRuleModel budgetRule,
   ) {
     // 1. Data Aggregation
     final totalIncome = incomes.fold<double>(0, (sum, item) => sum + item.amount);
     final categoryTypeMap = {for (var c in categories) c.name: c.type};
 
-    double totalNeeds = 0;
-    double totalWants = 0;
-    double totalSavings = 0; // Savings expenses + unspent income
-    double totalExpenseAmount = 0;
+    // Global Stats (For Grade & Projector) - unaffected by filter
+    double globalTotalExpense = 0;
+    double globalNeeds = 0;
+    double globalWants = 0;
+    double globalSavings = 0;
 
+    // Filtered Stats (For Benchmark Bars) - affected by filter
+    double filteredNeeds = 0;
+    double filteredWants = 0;
+    double filteredSavings = 0;
+    
+    // Collections for Drill-down
+    List<ExpenseModel> filteredNeedsExpenses = [];
+    List<ExpenseModel> filteredWantsExpenses = [];
+    List<ExpenseModel> filteredSavingsExpenses = [];
+    
+    // Note: totalIncome is used as denominator for both contexts usually, 
+    // but for 'Reality Check' bars, we usually compare Spending vs Income.
+    
     Map<String, double> categorySpending = {};
 
     for (var expense in expenses) {
@@ -89,61 +152,86 @@ class AnalysisScreen extends ConsumerWidget {
       
       final type = categoryTypeMap[expense.category] ?? 'Want';
       final amount = expense.amount as double;
-      totalExpenseAmount += amount;
-      
-      categorySpending[expense.category] = (categorySpending[expense.category] ?? 0) + amount;
+      final e = expense as ExpenseModel; // Cast for list
 
-      if (type == 'Need') totalNeeds += amount;
-      else if (type == 'Savings') totalSavings += amount;
-      else totalWants += amount;
+      // Global Aggregation
+      globalTotalExpense += amount;
+      if (type == 'Need') globalNeeds += amount;
+      else if (type == 'Savings') globalSavings += amount;
+      else globalWants += amount;
+
+      // Filter Check
+      bool includeInFilter = true;
+      if (_selectedPaymentFilter == 'Credit') {
+        if (expense.paymentMethod != 'Credit Card') includeInFilter = false;
+      }
+      if (_selectedPaymentFilter == 'Cash') {
+         if (expense.paymentMethod == 'Credit Card') includeInFilter = false;
+      }
+
+      if (includeInFilter) {
+        if (type == 'Need') {
+          filteredNeeds += amount;
+          filteredNeedsExpenses.add(e);
+        } else if (type == 'Savings') {
+          filteredSavings += amount;
+          filteredSavingsExpenses.add(e);
+        } else {
+          filteredWants += amount;
+          filteredWantsExpenses.add(e);
+        }
+        
+        categorySpending[expense.category] = (categorySpending[expense.category] ?? 0) + amount;
+      }
     }
 
-    // 2. Logic Check: Effective Wealth Change
-    final netCashFlow = totalIncome - totalExpenseAmount;
+    // 2. Logic Check: Effective Wealth Change (GLOBAL)
+    final globalNetCashFlow = totalIncome - globalTotalExpense;
     
-    // Effective Savings = Explicit Savings + (Surplus OR -Deficit)
-    // This represents the true 'Net Change in Wealth' for the month.
-    final effectiveSavings = totalSavings + netCashFlow;
+    // Effective Savings (Global)
+    final globalEffectiveSavings = globalSavings + globalNetCashFlow;
 
-    final savingsRate = totalIncome > 0 ? (effectiveSavings / totalIncome * 100) : 0.0;
-    final wantsRate = totalIncome > 0 ? (totalWants / totalIncome * 100) : 0.0;
-    final needsRate = totalIncome > 0 ? (totalNeeds / totalIncome * 100) : 0.0;
+    final globalSavingsRate = totalIncome > 0 ? (globalEffectiveSavings / totalIncome * 100) : 0.0;
+    // Calculate global rates for Grade logic
+    final globalWantsRate = totalIncome > 0 ? (globalWants / totalIncome * 100) : 0.0;
 
-    // 3. Grading Logic
+    // Filtered Rates (For Display Bars)
+    final filteredSavingsRate = totalIncome > 0 ? (filteredSavings / totalIncome * 100) : 0.0;
+    final filteredWantsRate = totalIncome > 0 ? (filteredWants / totalIncome * 100) : 0.0;
+    final filteredNeedsRate = totalIncome > 0 ? (filteredNeeds / totalIncome * 100) : 0.0;
+
+
+    // 3. Grading Logic (ALWAYS GLOBAL)
     String grade = "F";
     Color gradeColor = Colors.red;
     String feedback = "Critical Warning: You are spending more than you earn.";
 
-    if (netCashFlow < 0) {
+    if (globalNetCashFlow < 0) {
       // OVERSPENDING SCENARIO
-      if (effectiveSavings > 0) {
-        // Technically wealth increased (saved 20k, deficit 5k = +15k), BUT habit is bad.
-        // Penalty: Max Grade C.
+      if (globalEffectiveSavings > 0) {
         grade = "C";
         gradeColor = Colors.orange;
         feedback = "Warning: You are saving, but living beyond your income (using debt/reserves).";
       } else {
-        // Wealth decreased.
         grade = "F";
         gradeColor = Colors.red;
         feedback = "Critical: You are overspending and eroding your financial health.";
       }
     } else {
       // POSITIVE CASH FLOW SCENARIO
-      if (savingsRate >= 20 && wantsRate <= 35) {
+      if (globalSavingsRate >= 20 && globalWantsRate <= 35) {
         grade = "A+";
         gradeColor = const Color(0xFF10B981); // Green
         feedback = "Excellent! You are a master saver. Your wealth is growing fast.";
-      } else if (savingsRate >= 15) {
+      } else if (globalSavingsRate >= 15) {
         grade = "B";
         gradeColor = Colors.blue;
         feedback = "Good job. You are saving well, but watch your 'Wants' spending.";
-      } else if (savingsRate > 5) { // Lowered bar slightly for C
+      } else if (globalSavingsRate > 5) { 
         grade = "C";
         gradeColor = Colors.orange;
         feedback = "You are saving a little. Try to increase your savings rate.";
       } else {
-        // Break even or very low savings
         grade = "D";
         gradeColor = Colors.amber;
         feedback = "You are living paycheck to paycheck. Prioritize saving.";
@@ -155,31 +243,102 @@ class AnalysisScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Report Card Hero
-          _buildReportCard(context, grade, gradeColor, feedback, savingsRate),
+          // 1. Report Card Hero (GLOBAL)
+          _buildReportCard(context, grade, gradeColor, feedback, globalSavingsRate),
           const SizedBox(height: 24),
 
-          // 2. The Benchmarker (Needs / Wants / Savings vs 50/30/20)
+          // 2. The Benchmarker (Filtered View)
           Text("Reality Check", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          _buildBenchmarkBar(context, "Needs (Rent, Bills)", needsRate, 50, Colors.blueGrey),
+          _buildBenchmarkBar(
+            context, 
+            "Needs (Rent, Bills)", 
+            filteredNeedsRate, 
+            budgetRule.needs, 
+            Colors.blueGrey,
+            onTap: () => _showCategoryBreakdown(context, "Needs Breakdown", filteredNeedsExpenses),
+          ),
           const SizedBox(height: 12),
-          _buildBenchmarkBar(context, "Wants (Fun, Food)", wantsRate, 30, Colors.orange),
+          _buildBenchmarkBar(
+            context, 
+            "Wants (Fun, Food)", 
+            filteredWantsRate, 
+            budgetRule.wants, 
+            Colors.orange,
+            onTap: () => _showCategoryBreakdown(context, "Wants Breakdown", filteredWantsExpenses),
+          ),
           const SizedBox(height: 12),
-          _buildBenchmarkBar(context, "Savings (Future)", savingsRate, 20, Colors.green, isMin: true),
+          _buildBenchmarkBar(
+            context, 
+            "Savings (Future)", 
+            filteredSavingsRate, 
+            budgetRule.savings, 
+            Colors.green, 
+            isMin: true,
+            onTap: () => _showCategoryBreakdown(context, "Savings Breakdown", filteredSavingsExpenses),
+          ),
           
           const SizedBox(height: 32),
 
-          // 3. Wealth Projector
-          if (savingsRate > 5)
-            _buildWealthProjector(context, effectiveSavings),
+          // 3. Wealth Projector (GLOBAL)
+          if (globalSavingsRate > 5)
+            _buildWealthProjector(context, globalEffectiveSavings),
           
-           if (savingsRate <= 5)
-             _buildWakeUpCall(context, totalWants),
+           if (globalSavingsRate <= 5)
+             _buildWakeUpCall(context, globalWants),
 
           const SizedBox(height: 100),
         ],
       ),
+    );
+  }
+
+  void _showCategoryBreakdown(BuildContext context, String title, List<ExpenseModel> expenses) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              if (expenses.isEmpty)
+                const Center(child: Text("No expenses found."))
+              else
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: expenses.length,
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (ctx, index) {
+                      final exp = expenses[index];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: AppTheme.secondaryColor.withOpacity(0.1),
+                          child: Icon(
+                            exp.paymentMethod == 'Credit Card' ? Icons.credit_card : Icons.payments,
+                            color: AppTheme.secondaryColor,
+                            size: 18,
+                          ),
+                        ),
+                        title: Text(exp.title, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        subtitle: Text(DateFormat('MMM dd').format(exp.date)),
+                        trailing: Text(
+                          "₹${exp.amount.toStringAsFixed(0)}", 
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -234,54 +393,70 @@ class AnalysisScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBenchmarkBar(BuildContext context, String title, double current, double target, Color color, {bool isMin = false}) {
+  Widget _buildBenchmarkBar(BuildContext context, String title, double current, double target, Color color, {bool isMin = false, VoidCallback? onTap}) {
     // isMin = true means "At least X", false means "At most X"
     final theme = Theme.of(context);
     bool isWarning = isMin ? (current < target) : (current > target);
     Color barColor = isWarning ? Colors.red : color;
     
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-            Text(
-              "${current.toStringAsFixed(1)}% / ${target.toStringAsFixed(0)}%", 
-              style: TextStyle(
-                color: isWarning ? Colors.red : theme.colorScheme.onSurface,
-                fontWeight: isWarning ? FontWeight.bold : FontWeight.normal
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    if (onTap != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4.0),
+                        child: Icon(Icons.chevron_right, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                      )
+                  ],
+                ),
+                Text(
+                  "${current.toStringAsFixed(1)}% / ${target.toStringAsFixed(0)}%", 
+                  style: TextStyle(
+                    color: isWarning ? Colors.red : theme.colorScheme.onSurface,
+                    fontWeight: isWarning ? FontWeight.bold : FontWeight.normal
+                  )
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Stack(
+              children: [
+                Container(height: 10, decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(5))),
+                FractionallySizedBox(
+                  widthFactor: (current / 100).clamp(0.0, 1.0),
+                  child: Container(height: 10, decoration: BoxDecoration(color: barColor, borderRadius: BorderRadius.circular(5))),
+                ),
+                // Target Marker
+                Positioned(
+                  left: (MediaQuery.of(context).size.width - 40) * (target / 100),
+                  child: Container(
+                    width: 2, height: 10, color: Colors.black,
+                  ),
+                )
+              ],
+            ),
+            if (isWarning)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  isMin ? "Goal not met. Boost this!" : "Limit exceeded. Cut back.",
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
               )
-            ),
           ],
         ),
-        const SizedBox(height: 8),
-        Stack(
-          children: [
-            Container(height: 10, decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(5))),
-            FractionallySizedBox(
-              widthFactor: (current / 100).clamp(0.0, 1.0),
-              child: Container(height: 10, decoration: BoxDecoration(color: barColor, borderRadius: BorderRadius.circular(5))),
-            ),
-            // Target Marker
-            Positioned(
-              left: (MediaQuery.of(context).size.width - 40) * (target / 100),
-              child: Container(
-                width: 2, height: 10, color: Colors.black,
-              ),
-            )
-          ],
-        ),
-        if (isWarning)
-          Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              isMin ? "Goal not met. Boost this!" : "Limit exceeded. Cut back.",
-              style: const TextStyle(color: Colors.red, fontSize: 12),
-            ),
-          )
-      ],
+      ),
     );
   }
 
@@ -297,7 +472,7 @@ class AnalysisScreen extends ConsumerWidget {
     final fv1 = monthlySavings * ((getPow(1+r, 12) - 1) / r);
     // 10 Years
     final fv10 = monthlySavings * ((getPow(1+r, 120) - 1) / r);
-
+    // ... rest of projector logic ...
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
